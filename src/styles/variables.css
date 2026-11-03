@@ -1,0 +1,34 @@
+:root {
+  --color-warm-ivory: #F8F4F0;
+  --color-soft-cream: #F4E9E2;
+  --color-champagne: #E9D1B4;
+  --color-muted-gold: #D9A441;
+  --color-deep-charcoal: #25221F;
+  --color-secondary-text: #77716D;
+  --color-translucent-white: rgba(255, 255, 255, 0.48);
+
+  /* Day Accent Colors matching reference */
+  --day-monday: #E8A87C;
+  --day-monday-bg: rgba(247, 195, 142, 0.14);
+  
+  --day-tuesday: #7BB274;
+  --day-tuesday-bg: rgba(123, 178, 116, 0.12);
+  
+  --day-wednesday: #A07BB2;
+  --day-wednesday-bg: rgba(160, 123, 178, 0.12);
+  
+  --day-thursday: #DE7E8A;
+  --day-thursday-bg: rgba(222, 126, 138, 0.12);
+  
+  --day-friday: #6BAED6;
+  --day-friday-bg: rgba(107, 174, 214, 0.12);
+  
+  --day-saturday: #E5A83B;
+  --day-saturday-bg: rgba(229, 168, 59, 0.13);
+  
+  --day-sunday: #8E8AA0;
+  --day-sunday-bg: rgba(142, 138, 160, 0.12);
+
+  --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}

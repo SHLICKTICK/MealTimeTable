@@ -1,0 +1,74 @@
+@import "./variables.css";
+@import "./glassmorphism.css";
+
+/* Font utility classes */
+.font-serif {
+  font-family: var(--font-serif);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+/* Background scene replicating the reference image precisely */
+.apple-bg-scene {
+  background-color: #F8F4F0;
+  background-image: 
+    /* Bottom left warm apricot glow */
+    radial-gradient(circle 540px at 4% 92%, rgba(246, 190, 133, 0.45) 0%, rgba(248, 226, 204, 0.25) 45%, transparent 75%),
+    /* Mid left subtle champagne tone */
+    radial-gradient(circle 420px at 12% 60%, rgba(244, 219, 192, 0.3) 0%, transparent 65%),
+    /* Top right soft sunlit haze */
+    radial-gradient(circle 500px at 94% 8%, rgba(245, 235, 222, 0.5) 0%, transparent 70%),
+    /* Global subtle warm ivory gradient */
+    linear-gradient(135deg, #F9F5F1 0%, #F5ECE5 50%, #FAF6F2 100%);
+  background-attachment: fixed;
+  background-size: cover;
+  position: relative;
+}
+
+/* Botanical shadow accent in top-right corner matching reference image */
+.apple-bg-scene::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle at 100% 0%, rgba(70, 85, 55, 0.08) 0%, rgba(80, 95, 60, 0.03) 40%, transparent 75%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Custom delicate scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 110, 85, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 110, 85, 0.35);
+}
+
+/* Modal animation utilities */
+.modal-overlay {
+  background: rgba(40, 30, 20, 0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

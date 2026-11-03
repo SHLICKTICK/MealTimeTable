@@ -1,0 +1,6 @@
+{
+  "name": "MealWeek",
+  "description": "A premium Apple-inspired weekly meal planning PWA with warm luxury aesthetics, glassmorphism, recipe management, and offline support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

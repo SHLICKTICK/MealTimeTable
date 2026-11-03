@@ -1,0 +1,19 @@
+/* Responsive Layout and Mobile Adaptations */
+
+@media (max-width: 1024px) {
+  .desktop-sidebar {
+    display: none !important;
+  }
+  .mobile-nav-bar {
+    display: flex !important;
+  }
+  .recipe-panel-desktop {
+    display: none !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .mobile-nav-bar {
+    display: none !important;
+  }
+}
