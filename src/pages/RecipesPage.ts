@@ -1,7 +1,9 @@
 import { recipeService } from '../services/recipeService';
+import { inventoryService } from '../services/inventoryService';
 import { appState } from '../app/state';
 import { Recipe } from '../models/Recipe';
 import { getIconSvg } from '../utils/iconHelper';
+import { calculateRecipeCostBreakdown, formatZAR } from '../utils/pricingUtils';
 
 export class RecipesPage {
   private container: HTMLElement;
@@ -11,7 +13,7 @@ export class RecipesPage {
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.className = 'w-full flex-1 flex flex-col gap-5 select-none overflow-y-auto pr-1';
+    this.container.className = 'w-full flex flex-col gap-5 pb-16';
     this.loadRecipes();
   }
 
@@ -34,12 +36,14 @@ export class RecipesPage {
       return matchCat && matchSearch;
     });
 
+    const inventoryList = inventoryService.getLoadedIngredients();
+
     this.container.innerHTML = `
       <!-- Header with Title and Create Action -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#25221F]/10">
         <div>
           <h2 class="text-3xl font-serif font-medium text-[#25221F]">Recipe Library</h2>
-          <p class="text-xs text-[#77716D] mt-1">Manage dishes, ingredients, and assign meals across your weeks</p>
+          <p class="text-xs text-[#77716D] mt-1">Manage dishes, ingredients, portions, and dynamic ingredient-based costing</p>
         </div>
 
         <div class="flex items-center gap-3">
@@ -89,8 +93,12 @@ export class RecipesPage {
           </div>
         `
             : filtered
-                .map(
-                  (recipe) => `
+                .map((recipe) => {
+                  const cost = calculateRecipeCostBreakdown(recipe.ingredients, inventoryList);
+                  const costStr = cost.totalCost > 0 ? formatZAR(cost.totalCost) : null;
+                  const perServingStr = cost.totalCost > 0 ? formatZAR(cost.totalCost / (recipe.servings || 1)) : null;
+
+                  return `
           <div class="recipe-item-card glass-card rounded-2xl overflow-hidden flex flex-col justify-between hover:shadow-md transition cursor-pointer group" data-id="${recipe.id}">
             <div>
               <div class="w-full h-44 overflow-hidden relative bg-[#F4E9E2]">
@@ -104,6 +112,16 @@ export class RecipesPage {
                 <span class="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/80 backdrop-blur-md text-[#77716D] shadow-2xs">
                   ${recipe.ingredients.length} ing.
                 </span>
+
+                ${
+                  costStr
+                    ? `
+                  <span class="absolute bottom-3 right-3 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#FAF6F0]/90 backdrop-blur-md text-[#8C5C26] border border-[#EFE4D6] shadow-2xs tabular-nums">
+                    Est. ${costStr}
+                  </span>
+                `
+                    : ''
+                }
               </div>
 
               <div class="p-4 flex flex-col gap-1.5">
@@ -114,6 +132,16 @@ export class RecipesPage {
                 <p class="text-xs text-[#77716D] line-clamp-2 leading-relaxed">
                   ${recipe.description || 'Delicious home-cooked meal.'}
                 </p>
+                ${
+                  perServingStr
+                    ? `
+                  <div class="flex items-center gap-1.5 text-[11px] text-[#8C5C26] font-medium pt-0.5">
+                    <span>${getIconSvg('chart-bar', 'w-3 h-3')}</span>
+                    <span>${perServingStr} per serving</span>
+                  </div>
+                `
+                    : ''
+                }
               </div>
             </div>
 
@@ -133,8 +161,8 @@ export class RecipesPage {
               </div>
             </div>
           </div>
-        `
-                )
+        `;
+                })
                 .join('')
         }
       </div>

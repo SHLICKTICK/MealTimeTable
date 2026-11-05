@@ -2,8 +2,26 @@ import { Recipe } from '../models/Recipe';
 import { WeeklyPlan } from '../models/WeeklyPlan';
 import { recipeService } from '../services/recipeService';
 import { mealPlanService } from '../services/mealPlanService';
+import { inventoryService } from '../services/inventoryService';
 
-export type AppPage = 'weekly' | 'recipes' | 'shopping' | 'settings';
+export type AppPage = 'weekly' | 'recipes' | 'ingredients' | 'shopping' | 'settings';
+
+export type ModalType =
+  | 'assign-meal'
+  | 'edit-recipe'
+  | 'create-recipe'
+  | 'week-selector'
+  | 'ios-pwa-guide'
+  | 'meal-completion'
+  | 'add-inventory'
+  | 'edit-inventory'
+  | 'inventory-activity';
+
+export interface ToastNotification {
+  id: string;
+  message: string;
+  type: 'success' | 'info' | 'warning';
+}
 
 export interface AppState {
   activePage: AppPage;
@@ -15,9 +33,11 @@ export interface AppState {
   recipeDetailServings: number;
   isRecipePanelOpen: boolean;
   activeModal: {
-    type: 'assign-meal' | 'edit-recipe' | 'create-recipe' | 'week-selector' | 'ios-pwa-guide' | null;
+    type: ModalType | null;
     data?: any;
+    id?: string;
   } | null;
+  toast: ToastNotification | null;
   canInstallPwa: boolean;
   isInstalledPwa: boolean;
   isOnline: boolean;
@@ -37,6 +57,7 @@ class StateManager {
     recipeDetailServings: 4,
     isRecipePanelOpen: true,
     activeModal: null,
+    toast: null,
     canInstallPwa: false,
     isInstalledPwa: false,
     isOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
@@ -45,6 +66,7 @@ class StateManager {
 
   private listeners: Set<Listener> = new Set();
   private deferredPwaPrompt: any = null;
+  private toastTimer: any = null;
 
   getState(): AppState {
     return { ...this.state };
@@ -61,7 +83,6 @@ class StateManager {
   }
 
   async init(): Promise<void> {
-    // Check if running in standalone mode (already installed PWA)
     if (typeof window !== 'undefined') {
       const isStandalone =
         window.matchMedia('(display-mode: standalone)').matches ||
@@ -77,7 +98,6 @@ class StateManager {
         this.notify();
       });
 
-      // Capture PWA install prompt
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         this.deferredPwaPrompt = e;
@@ -92,6 +112,9 @@ class StateManager {
         this.notify();
       });
     }
+
+    // Initialize inventory service & seed pantry
+    await inventoryService.init();
 
     // Load initial week plan and select Monday Dinner (Chicken & Rice)
     const plan = await mealPlanService.getWeekPlan(this.state.weekOffset);
@@ -116,7 +139,6 @@ class StateManager {
     this.state.weekOffset = offset;
     this.state.currentPlan = await mealPlanService.getWeekPlan(offset);
 
-    // Keep active selection in sync
     const currentDay = this.state.currentPlan.days[this.state.selectedDayIndex];
     const meal = currentDay ? currentDay[this.state.selectedMealType] : null;
     if (meal) {
@@ -163,14 +185,29 @@ class StateManager {
     this.notify();
   }
 
-  openModal(type: NonNullable<AppState['activeModal']>['type'], data?: any): void {
-    this.state.activeModal = { type, data };
+  openModal(type: ModalType, data?: any): void {
+    this.state.activeModal = {
+      type,
+      data,
+      id: `modal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    };
     this.notify();
   }
 
   closeModal(): void {
     this.state.activeModal = null;
     this.notify();
+  }
+
+  showToast(message: string, type: 'success' | 'info' | 'warning' = 'success'): void {
+    if (this.toastTimer) clearTimeout(this.toastTimer);
+    this.state.toast = { id: `toast-${Date.now()}`, message, type };
+    this.notify();
+
+    this.toastTimer = setTimeout(() => {
+      this.state.toast = null;
+      this.notify();
+    }, 4000);
   }
 
   async installPwa(): Promise<boolean> {
@@ -185,7 +222,6 @@ class StateManager {
         return true;
       }
     } else {
-      // Show iOS guided instructions if iOS
       const isIOS = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
       if (isIOS) {
         this.openModal('ios-pwa-guide');

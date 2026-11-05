@@ -45,6 +45,7 @@ export class Sidebar {
         <nav class="flex flex-col gap-2">
           ${this.renderNavItem('weekly', 'Weekly Plan', 'calendar', activePage === 'weekly')}
           ${this.renderNavItem('recipes', 'Recipes', 'book-open', activePage === 'recipes')}
+          ${this.renderNavItem('ingredients', 'Ingredients', 'package', activePage === 'ingredients')}
           ${this.renderNavItem('shopping', 'Shopping List', 'shopping-cart', activePage === 'shopping')}
           ${this.renderNavItem('settings', 'Settings', 'settings', activePage === 'settings')}
         </nav>

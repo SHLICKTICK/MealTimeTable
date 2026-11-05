@@ -4,12 +4,15 @@
  */
 
 const DB_NAME = 'MealWeekDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORES = {
   RECIPES: 'recipes',
   WEEKLY_PLANS: 'weekly_plans',
   SHOPPING_LIST: 'shopping_list',
   SETTINGS: 'settings',
+  INVENTORY: 'inventory',
+  COMPLETIONS: 'meal_completions',
+  TRANSACTIONS: 'inventory_transactions',
 };
 
 class StorageService {
@@ -45,6 +48,15 @@ class StorageService {
           }
           if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
             db.createObjectStore(STORES.SETTINGS, { keyPath: 'key' });
+          }
+          if (!db.objectStoreNames.contains(STORES.INVENTORY)) {
+            db.createObjectStore(STORES.INVENTORY, { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains(STORES.COMPLETIONS)) {
+            db.createObjectStore(STORES.COMPLETIONS, { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains(STORES.TRANSACTIONS)) {
+            db.createObjectStore(STORES.TRANSACTIONS, { keyPath: 'id' });
           }
         };
 

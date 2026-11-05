@@ -1,4 +1,5 @@
 export type MealType = 'breakfast' | 'dinner';
+export type MealCookingStatus = 'planned' | 'cooking' | 'cooked' | 'skipped';
 
 export interface PlannedMeal {
   id: string;
@@ -8,4 +9,6 @@ export interface PlannedMeal {
   title: string;
   imageUrl: string;
   servings: number;
+  status?: MealCookingStatus; // default 'planned'
+  completionId?: string;
 }

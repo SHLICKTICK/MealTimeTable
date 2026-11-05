@@ -8,7 +8,7 @@ export class SettingsPage {
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.className = 'w-full flex-1 flex flex-col gap-5 select-none overflow-y-auto pr-1';
+    this.container.className = 'w-full flex flex-col gap-5 pb-16';
     this.render();
   }
 

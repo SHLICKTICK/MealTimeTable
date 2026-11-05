@@ -1,4 +1,4 @@
-import { PlannedMeal } from '../models/PlannedMeal';
+import { PlannedMeal, MealCookingStatus } from '../models/PlannedMeal';
 import { WeeklyPlan, DayPlan } from '../models/WeeklyPlan';
 import { getWeekDates } from '../utils/dateUtils';
 import { recipeService } from './recipeService';
@@ -15,6 +15,11 @@ class MealPlanService {
     // Try loading saved plan
     const stored = await storageService.get<WeeklyPlan>(STORES.WEEKLY_PLANS, weekId);
     if (stored) {
+      // Ensure existing saved meals have status defined
+      stored.days.forEach((day) => {
+        if (day.breakfast && !day.breakfast.status) day.breakfast.status = 'planned';
+        if (day.dinner && !day.dinner.status) day.dinner.status = 'planned';
+      });
       this.currentPlan = stored;
       return stored;
     }
@@ -51,6 +56,7 @@ class MealPlanService {
             title: bRec.title,
             imageUrl: bRec.imageUrl,
             servings: bRec.servings,
+            status: 'planned',
           };
         }
 
@@ -64,6 +70,7 @@ class MealPlanService {
             title: dRec.title,
             imageUrl: dRec.imageUrl,
             servings: dRec.servings,
+            status: 'planned',
           };
         }
       }
@@ -105,6 +112,7 @@ class MealPlanService {
       title: recipe.title,
       imageUrl: recipe.imageUrl,
       servings: recipe.servings,
+      status: 'planned',
     };
 
     plan.days[dayIndex][mealType] = plannedMeal;
@@ -112,6 +120,26 @@ class MealPlanService {
 
     await storageService.set(STORES.WEEKLY_PLANS, plan);
     this.currentPlan = plan;
+    return plan;
+  }
+
+  async updateMealStatus(
+    weekId: string,
+    dayIndex: number,
+    mealType: 'breakfast' | 'dinner',
+    status: MealCookingStatus,
+    completionId?: string
+  ): Promise<WeeklyPlan> {
+    const plan = (await storageService.get<WeeklyPlan>(STORES.WEEKLY_PLANS, weekId)) || (await this.getWeekPlan(this.currentWeekOffset));
+    if (plan.days[dayIndex] && plan.days[dayIndex][mealType]) {
+      const meal = plan.days[dayIndex][mealType]!;
+      meal.status = status;
+      if (completionId !== undefined) {
+        meal.completionId = completionId;
+      }
+      await storageService.set(STORES.WEEKLY_PLANS, plan);
+      this.currentPlan = plan;
+    }
     return plan;
   }
 
@@ -127,13 +155,11 @@ class MealPlanService {
   }
 
   private recalculateBudget(plan: WeeklyPlan): void {
-    // Count planned dinner meals
     let dinnersCount = 0;
     plan.days.forEach((d) => {
       if (d.dinner) dinnersCount++;
     });
 
-    // Baseline budget scale
     if (dinnersCount === 7) {
       plan.estimatedBudgetZAR = 1250.0;
     } else {

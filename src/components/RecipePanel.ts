@@ -2,7 +2,14 @@ import { appState } from '../app/state';
 import { getIconSvg } from '../utils/iconHelper';
 import { scaleIngredientsList } from '../utils/ingredientScaling';
 import { mealPlanService } from '../services/mealPlanService';
+import { inventoryService } from '../services/inventoryService';
 import { DAY_NAMES } from '../utils/dateUtils';
+import { MealCookingStatus } from '../models/PlannedMeal';
+import {
+  calculateRecipeCostBreakdown,
+  calculateIngredientCost,
+  formatZAR,
+} from '../utils/pricingUtils';
 
 export class RecipePanel {
   private container: HTMLElement;
@@ -26,6 +33,10 @@ export class RecipePanel {
     const dayName = DAY_NAMES[dayIndex] || 'Monday';
     const mealLabel = mealType === 'breakfast' ? 'Breakfast' : 'Dinner';
     const categoryTag = `${dayName} • ${mealLabel}`;
+
+    const currentDay = state.currentPlan?.days[dayIndex];
+    const plannedMeal = currentDay ? currentDay[mealType] : null;
+    const mealStatus: MealCookingStatus = plannedMeal?.status || 'planned';
 
     if (!recipe) {
       this.container.innerHTML = `
@@ -52,6 +63,30 @@ export class RecipePanel {
 
     const currentServings = state.recipeDetailServings || recipe.servings || 4;
     const scaledIngredients = scaleIngredientsList(recipe.ingredients, recipe.servings, currentServings);
+    const inventoryList = inventoryService.getLoadedIngredients();
+    const costBreakdown = calculateRecipeCostBreakdown(scaledIngredients, inventoryList);
+
+    // Status styling
+    let statusPill = '';
+    if (mealStatus === 'cooked') {
+      statusPill = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#EAF5EA] text-[#3E703E] border border-[#D5EAD5] shadow-2xs">
+        ${getIconSvg('check-circle', 'w-3.5 h-3.5 text-[#4A7C4A]')}
+        Cooked
+      </span>`;
+    } else if (mealStatus === 'cooking') {
+      statusPill = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#FDF4E7] text-[#B87A24] border border-[#F6DEBD] shadow-2xs animate-pulse">
+        ${getIconSvg('flame', 'w-3.5 h-3.5 text-[#C2822B]')}
+        Cooking Now
+      </span>`;
+    } else if (mealStatus === 'skipped') {
+      statusPill = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
+        Skipped
+      </span>`;
+    } else {
+      statusPill = `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-[#77716D] bg-white/60 border border-white/80 shadow-2xs">
+        Planned
+      </span>`;
+    }
 
     this.container.innerHTML = `
       <div class="flex flex-col gap-4">
@@ -68,11 +103,22 @@ export class RecipePanel {
           </button>
         </div>
 
-        <!-- Meta Category Pill matching reference -->
-        <div class="pt-0.5">
+        <!-- Meta Category Pill & Meal Cooking Status -->
+        <div class="flex items-center justify-between pt-0.5">
           <span class="inline-block px-3 py-1 rounded-full text-xs font-medium text-[#25221F] bg-white/60 border border-white/80 shadow-2xs">
             ${categoryTag}
           </span>
+          <div class="flex items-center gap-1.5">
+            ${statusPill}
+            <select id="select-meal-status-quick" 
+                    class="text-[11px] bg-white/50 border border-white/80 rounded-lg px-1.5 py-0.5 text-[#77716D] hover:text-[#25221F] focus:outline-none cursor-pointer"
+                    title="Change meal status">
+              <option value="planned" ${mealStatus === 'planned' ? 'selected' : ''}>Set: Planned</option>
+              <option value="cooking" ${mealStatus === 'cooking' ? 'selected' : ''}>Set: Cooking</option>
+              <option value="cooked" ${mealStatus === 'cooked' ? 'selected' : ''}>Set: Cooked</option>
+              <option value="skipped" ${mealStatus === 'skipped' ? 'selected' : ''}>Set: Skipped</option>
+            </select>
+          </div>
         </div>
 
         <!-- Recipe Title & Description -->
@@ -85,8 +131,25 @@ export class RecipePanel {
           </p>
         </div>
 
+        <!-- Real-Time Recipe Cost Card -->
+        <div class="glass-card px-3.5 py-2.5 rounded-2xl flex items-center justify-between bg-gradient-to-r from-white/90 to-[#FAF6F0] border border-[#EFE4D6] shadow-2xs">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-[#FBF5ED] border border-[#F3E2CE] flex items-center justify-center text-[#8C5C26] shrink-0">
+              ${getIconSvg('chart-bar', 'w-4 h-4')}
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[10.5px] text-[#77716D] font-medium">Estimated Meal Cost</span>
+              <span class="text-base font-bold text-[#8C5C26] tabular-nums">${formatZAR(costBreakdown.totalCost)}</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] text-[#77716D] block">Per Serving</span>
+            <span class="text-xs font-semibold text-[#25221F] tabular-nums">${formatZAR(costBreakdown.totalCost / (currentServings || 1))}</span>
+          </div>
+        </div>
+
         <!-- Ingredients Section with Dynamic Servings Stepper -->
-        <div class="glass-card p-4 rounded-2xl flex flex-col gap-3 mt-1">
+        <div class="glass-card p-4 rounded-2xl flex flex-col gap-3 mt-0.5">
           <div class="flex items-center justify-between pb-1 border-b border-[#25221F]/8">
             <div class="flex items-center gap-2 text-sm font-semibold text-[#25221F]">
               <span class="text-[#8C5C26]">${getIconSvg('utensils', 'w-4 h-4')}</span>
@@ -109,30 +172,75 @@ export class RecipePanel {
             </div>
           </div>
 
-          <!-- Scaled Ingredients Table matching reference layout -->
+          <!-- Scaled Ingredients Table with Individual Costs -->
           <div class="flex flex-col divide-y divide-[#25221F]/5 max-h-[220px] overflow-y-auto pr-1">
             ${scaledIngredients
-              .map(
-                (ing) => `
+              .map((ing) => {
+                // Match with breakdown item
+                const breakdownItem = costBreakdown.items.find(
+                  (b) => b.name.toLowerCase() === ing.name.toLowerCase()
+                );
+                const cost = breakdownItem ? breakdownItem.cost : 0;
+
+                return `
               <div class="flex items-center justify-between py-2 text-xs">
                 <span class="text-[#25221F] font-medium flex items-center gap-2">
                   <span class="w-1.5 h-1.5 rounded-full bg-[#D9A441]/70 inline-block"></span>
                   ${ing.name}
                 </span>
-                <span class="text-[#25221F] font-semibold text-right tabular-nums">
-                  ${ing.formattedQuantity}
-                </span>
+                <div class="flex items-center gap-2 text-right">
+                  <span class="text-[#25221F] font-semibold tabular-nums">
+                    ${ing.formattedQuantity}
+                  </span>
+                  ${
+                    cost > 0
+                      ? `
+                    <span class="text-[10.5px] font-medium text-[#8C5C26] bg-[#FAF5EE] px-1.5 py-0.5 rounded-md border border-[#F3E2CE] tabular-nums" title="Cost based on pantry price">
+                      ${formatZAR(cost)}
+                    </span>
+                  `
+                      : ''
+                  }
+                </div>
               </div>
-            `
-              )
+            `;
+              })
               .join('')}
           </div>
         </div>
 
+        <!-- Meal Completion Primary Action -->
+        <div class="flex flex-col gap-2 pt-1">
+          ${
+            mealStatus === 'cooked'
+              ? `
+            <div class="flex items-center gap-2">
+              <div class="flex-1 py-2.5 px-3 rounded-2xl bg-[#EAF5EA] text-[#3E703E] text-xs font-semibold flex items-center justify-center gap-2 border border-[#D5EAD5]">
+                ${getIconSvg('check-circle', 'w-4 h-4 text-[#4A7C4A]')}
+                Cooked & Ingredients Deducted
+              </div>
+              <button id="btn-undo-cooked" 
+                      class="py-2.5 px-3 rounded-2xl glass-card text-xs font-medium text-[#77716D] hover:text-[#25221F] hover:bg-white/90 flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                      title="Undo cooking and restore deducted inventory">
+                ${getIconSvg('rotate-ccw', 'w-3.5 h-3.5')}
+                Undo
+              </button>
+            </div>
+          `
+              : `
+            <button id="btn-mark-cooked" 
+                    class="w-full py-3 px-4 rounded-2xl bg-[#8C5C26] hover:bg-[#73491E] text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow-sm cursor-pointer">
+              ${getIconSvg('check-circle', 'w-4 h-4 text-amber-200')}
+              Mark as Cooked & Deduct Stock
+            </button>
+          `
+          }
+        </div>
+
         <!-- Bottom Action Buttons matching reference -->
-        <div class="flex items-center gap-2.5 pt-2 mt-auto">
+        <div class="flex items-center gap-2.5 pt-1 mt-auto">
           <button id="btn-edit-meal" 
-                  class="flex-1 py-3 px-4 rounded-2xl bg-[#25221F] text-white text-xs font-medium flex items-center justify-center gap-2 hover:bg-[#3D3833] transition shadow-sm cursor-pointer">
+                  class="flex-1 py-2.5 px-4 rounded-2xl bg-[#25221F] text-white text-xs font-medium flex items-center justify-center gap-2 hover:bg-[#3D3833] transition shadow-sm cursor-pointer">
             ${getIconSvg('edit', 'w-3.5 h-3.5')}
             Edit Meal
           </button>
@@ -146,11 +254,14 @@ export class RecipePanel {
       </div>
     `;
 
-    this.bindEvents(recipe);
+    this.bindEvents(recipe, plannedMeal);
   }
 
-  private bindEvents(recipe: any): void {
+  private bindEvents(recipe: any, plannedMeal: any): void {
     const state = appState.getState();
+    const dayIndex = state.selectedDayIndex;
+    const mealType = state.selectedMealType;
+    const currentServings = state.recipeDetailServings || recipe.servings || 4;
 
     const closeBtn = this.container.querySelector('#btn-close-recipe');
     closeBtn?.addEventListener('click', () => {
@@ -169,6 +280,55 @@ export class RecipePanel {
     incBtn?.addEventListener('click', () => {
       const cur = state.recipeDetailServings || 4;
       appState.setRecipeDetailServings(cur + 1);
+    });
+
+    // Mark as cooked button
+    const markCookedBtn = this.container.querySelector('#btn-mark-cooked');
+    markCookedBtn?.addEventListener('click', () => {
+      if (plannedMeal) {
+        appState.openModal('meal-completion', {
+          plannedMeal,
+          recipe,
+          servings: currentServings,
+          dayIndex,
+          mealType,
+        });
+      }
+    });
+
+    // Undo cooked button
+    const undoCookedBtn = this.container.querySelector('#btn-undo-cooked');
+    undoCookedBtn?.addEventListener('click', async () => {
+      if (plannedMeal && plannedMeal.completionId) {
+        const reversed = await inventoryService.undoMealCompletion(plannedMeal.completionId);
+        if (reversed && state.currentPlan) {
+          await mealPlanService.updateMealStatus(state.currentPlan.id, dayIndex, mealType, 'planned');
+          appState.showToast(`Restored ingredients for ${recipe.title}`, 'info');
+          await appState.setWeekOffset(state.weekOffset);
+        }
+      }
+    });
+
+    // Quick status dropdown
+    const statusSelect = this.container.querySelector<HTMLSelectElement>('#select-meal-status-quick');
+    statusSelect?.addEventListener('change', async (e) => {
+      const newStatus = (e.target as HTMLSelectElement).value as MealCookingStatus;
+      if (newStatus === 'cooked') {
+        // Open completion modal
+        if (plannedMeal) {
+          appState.openModal('meal-completion', {
+            plannedMeal,
+            recipe,
+            servings: currentServings,
+            dayIndex,
+            mealType,
+          });
+        }
+      } else if (state.currentPlan) {
+        await mealPlanService.updateMealStatus(state.currentPlan.id, dayIndex, mealType, newStatus);
+        appState.showToast(`Updated status to ${newStatus}`, 'info');
+        await appState.setWeekOffset(state.weekOffset);
+      }
     });
 
     const editBtn = this.container.querySelector('#btn-edit-meal');

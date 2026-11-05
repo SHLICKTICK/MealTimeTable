@@ -25,6 +25,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script>
+      // Gracefully silence HMR WebSocket errors in environments where HMR is disabled
+      window.addEventListener('error', function(e) {
+        if (e && (e.message?.includes('WebSocket') || e.message?.includes('ws://') || e.message?.includes('wss://'))) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(e) {
+        if (e && e.reason && (e.reason.message?.includes('WebSocket') || e.reason.message?.includes('ws://'))) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+        }
+      }, true);
+    </script>
   </head>
   <body class="bg-[#F8F4F0] text-[#25221F] antialiased select-none overflow-x-hidden min-h-screen">
     <div id="app" class="min-h-screen w-full flex flex-col justify-between"></div>

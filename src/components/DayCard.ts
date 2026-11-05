@@ -45,6 +45,28 @@ export class DayCard {
     const bMeal = this.day.breakfast;
     const dMeal = this.day.dinner;
 
+    const bStatusBadge =
+      bMeal?.status === 'cooked'
+        ? `<span class="inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-[#3E703E] bg-[#EAF5EA] px-1.5 py-0.2 rounded-full border border-[#D5EAD5]">
+             ${getIconSvg('check', 'w-2.5 h-2.5')} Cooked
+           </span>`
+        : bMeal?.status === 'cooking'
+        ? `<span class="inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-[#B87A24] bg-[#FDF4E7] px-1.5 py-0.2 rounded-full border border-[#F6DEBD]">
+             Cooking
+           </span>`
+        : '';
+
+    const dStatusBadge =
+      dMeal?.status === 'cooked'
+        ? `<span class="inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-[#3E703E] bg-[#EAF5EA] px-1.5 py-0.2 rounded-full border border-[#D5EAD5]">
+             ${getIconSvg('check', 'w-2.5 h-2.5')} Cooked
+           </span>`
+        : dMeal?.status === 'cooking'
+        ? `<span class="inline-flex items-center gap-0.5 text-[9.5px] font-semibold text-[#B87A24] bg-[#FDF4E7] px-1.5 py-0.2 rounded-full border border-[#F6DEBD]">
+             Cooking
+           </span>`
+        : '';
+
     this.container.innerHTML = `
       <!-- Left: Day & Date -->
       <div class="flex flex-col min-w-[90px] shrink-0 pl-1">
@@ -64,6 +86,7 @@ export class DayCard {
           <div class="flex items-center gap-1.5 text-[11px] font-medium text-[#B87A38]">
             ${getIconSvg('sun', 'w-3 h-3 text-[#D9A441]')}
             <span>Breakfast</span>
+            ${bStatusBadge}
           </div>
           <span class="text-sm md:text-[14.5px] font-semibold text-[#25221F] truncate mt-0.5 max-w-[150px] md:max-w-[200px]">
             ${bMeal ? bMeal.title : '<span class="text-[#77716D]/60 italic font-normal">Add breakfast</span>'}
@@ -77,6 +100,13 @@ export class DayCard {
               ? `<img src="${bMeal.imageUrl}" alt="${bMeal.title}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" loading="lazy" />`
               : `<div class="w-full h-full flex items-center justify-center text-[#B87A38]/50">${getIconSvg('sun', 'w-5 h-5')}</div>`
           }
+          ${
+            bMeal?.status === 'cooked'
+              ? `<div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-600 rounded-full flex items-center justify-center text-white border border-white">
+                   ${getIconSvg('check', 'w-2 h-2')}
+                 </div>`
+              : ''
+          }
         </div>
       </div>
 
@@ -88,6 +118,7 @@ export class DayCard {
           <div class="flex items-center gap-1.5 text-[11px] font-medium text-[#7A6B5D]">
             ${getIconSvg('moon', 'w-3 h-3 text-[#8C6D4C]')}
             <span>Dinner</span>
+            ${dStatusBadge}
           </div>
           <span class="text-sm md:text-[14.5px] font-semibold text-[#25221F] truncate mt-0.5 max-w-[150px] md:max-w-[200px]">
             ${dMeal ? dMeal.title : '<span class="text-[#77716D]/60 italic font-normal">Add dinner</span>'}
@@ -100,6 +131,13 @@ export class DayCard {
             dMeal?.imageUrl
               ? `<img src="${dMeal.imageUrl}" alt="${dMeal.title}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" loading="lazy" />`
               : `<div class="w-full h-full flex items-center justify-center text-[#7A6B5D]/50">${getIconSvg('moon', 'w-5 h-5')}</div>`
+          }
+          ${
+            dMeal?.status === 'cooked'
+              ? `<div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-600 rounded-full flex items-center justify-center text-white border border-white">
+                   ${getIconSvg('check', 'w-2 h-2')}
+                 </div>`
+              : ''
           }
         </div>
       </div>
@@ -129,7 +167,6 @@ export class DayCard {
       appState.selectMeal(this.day.dayIndex, 'dinner');
     });
 
-    // Clicking the day card itself or the right chevron
     const actionBtn = this.container.querySelector('.btn-day-action');
     actionBtn?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -137,7 +174,6 @@ export class DayCard {
     });
 
     this.container.addEventListener('click', () => {
-      // Default selects dinner or breakfast if dinner empty
       const state = appState.getState();
       appState.selectMeal(this.day.dayIndex, state.selectedMealType);
     });
