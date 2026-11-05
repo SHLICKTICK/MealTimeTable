@@ -7,7 +7,7 @@ export class WeeklyHeader {
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.className = 'w-full flex items-center justify-between pb-3 pt-1 select-none';
+    this.container.className = 'w-full flex items-center justify-between gap-6 pb-3.5 pt-0.5 select-none shrink-0';
     this.render();
   }
 
@@ -20,36 +20,49 @@ export class WeeklyHeader {
     const weekLabel = formatWeekSelectorLabel(state.weekOffset);
 
     this.container.innerHTML = `
-      <div class="flex flex-col">
-        <h2 class="text-3xl md:text-[34px] font-serif font-medium text-[#25221F] tracking-tight leading-none">
-          This Week’s Meal Plan
-        </h2>
-        <p class="text-xs md:text-sm text-[#77716D] mt-1.5 font-normal tracking-wide">
-          Monday – Sunday
-        </p>
+      <!-- Left Title & Center-Right Week Controls (aligned above Day Cards column) -->
+      <div class="flex-1 min-w-0 flex items-center justify-between gap-4">
+        <div class="flex flex-col">
+          <h2 class="text-[27px] md:text-[32px] xl:text-[36px] font-serif font-normal text-[#221F1C] tracking-[-0.015em] leading-[1.08]">
+            This Week’s Meal Plan
+          </h2>
+          <p class="text-[12.5px] md:text-[13.5px] text-[#6B6560] mt-1 font-normal tracking-wide">
+            Monday – Sunday
+          </p>
+        </div>
+
+        <!-- Week Controls -->
+        <div class="flex items-center gap-2 shrink-0">
+          <button id="btn-prev-week" class="glass-circle-btn" title="Previous Week" aria-label="Previous Week">
+            ${getIconSvg('chevron-left', 'w-4 h-4 text-[#221F1C]')}
+          </button>
+
+          <button id="btn-week-selector" 
+                  class="glass-pill px-4 py-2 text-xs md:text-[13px] font-medium text-[#221F1C] flex items-center gap-2 cursor-pointer hover:bg-white/80 transition shadow-sm">
+            <span>${weekLabel}</span>
+            ${getIconSvg('chevron-down', 'w-3.5 h-3.5 text-[#6B6560]')}
+          </button>
+
+          <button id="btn-next-week" class="glass-circle-btn" title="Next Week" aria-label="Next Week">
+            ${getIconSvg('chevron-right', 'w-4 h-4 text-[#221F1C]')}
+          </button>
+
+          <!-- Compact profile button on viewports below xl -->
+          <button class="btn-user-profile-trigger xl:hidden w-9 h-9 rounded-full flex items-center justify-center bg-[#C8C3BC]/45 hover:bg-white/80 backdrop-blur-md border border-white/75 shadow-xs text-[#221F1C] transition cursor-pointer ml-1" 
+                  title="Account Settings" 
+                  aria-label="User Profile">
+            ${getIconSvg('user', 'w-4 h-4 text-[#221F1C]')}
+          </button>
+        </div>
       </div>
 
-      <!-- Week Controls & Avatar matching reference exactly -->
-      <div class="flex items-center gap-2.5">
-        <button id="btn-prev-week" class="glass-circle-btn" title="Previous Week" aria-label="Previous Week">
-          ${getIconSvg('chevron-left', 'w-4 h-4 text-[#25221F]')}
-        </button>
-
-        <button id="btn-week-selector" 
-                class="glass-pill px-4 py-2 text-xs md:text-sm font-medium text-[#25221F] flex items-center gap-2 cursor-pointer hover:bg-white/80 transition shadow-sm">
-          <span>${weekLabel}</span>
-          ${getIconSvg('chevron-down', 'w-3.5 h-3.5 text-[#77716D]')}
-        </button>
-
-        <button id="btn-next-week" class="glass-circle-btn" title="Next Week" aria-label="Next Week">
-          ${getIconSvg('chevron-right', 'w-4 h-4 text-[#25221F]')}
-        </button>
-
+      <!-- Far-Right Profile Avatar (aligned above Recipe Panel over botanical background) -->
+      <div class="hidden xl:flex w-[390px] xl:w-[410px] shrink-0 justify-end items-center">
         <button id="btn-user-profile" 
-                class="glass-circle-btn ml-1 hover:bg-white/90" 
+                class="btn-user-profile-trigger w-9 h-9 rounded-full flex items-center justify-center bg-[#C8C3BC]/45 hover:bg-white/80 backdrop-blur-md border border-white/75 shadow-xs text-[#221F1C] transition cursor-pointer" 
                 title="Account Settings" 
                 aria-label="User Profile">
-          ${getIconSvg('user', 'w-4 h-4 text-[#25221F]')}
+          ${getIconSvg('user', 'w-4 h-4 text-[#221F1C]')}
         </button>
       </div>
     `;
@@ -75,9 +88,11 @@ export class WeeklyHeader {
       appState.openModal('week-selector');
     });
 
-    const userBtn = this.container.querySelector('#btn-user-profile');
-    userBtn?.addEventListener('click', () => {
-      appState.setPage('settings');
+    const userBtns = this.container.querySelectorAll('.btn-user-profile-trigger');
+    userBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        appState.setPage('settings');
+      });
     });
   }
 }

@@ -7,7 +7,7 @@ export class Sidebar {
   constructor() {
     this.container = document.createElement('aside');
     this.container.className =
-      'desktop-sidebar w-[230px] shrink-0 h-full flex flex-col justify-between p-5 glass-panel select-none';
+      'desktop-sidebar w-[225px] xl:w-[238px] shrink-0 h-full flex flex-col justify-between px-5 py-7 sidebar-glass rounded-tr-[32px] rounded-br-[32px] select-none relative overflow-hidden';
     this.render();
   }
 
@@ -20,29 +20,34 @@ export class Sidebar {
     const activePage = state.activePage;
 
     this.container.innerHTML = `
-      <div class="flex flex-col gap-8">
-        <!-- Brand Section matching reference exactly -->
-        <div class="flex flex-col items-center text-center pt-2">
-          <!-- Champagne rounded square with chef hat -->
-          <div class="w-14 h-14 rounded-2xl flex items-center justify-center relative shadow-sm mb-3"
-               style="background: linear-gradient(145deg, #FDF4E7 0%, #E9D1B4 60%, #D8B788 100%);
-                      border: 1px solid rgba(255, 255, 255, 0.9);
-                      box-shadow: 0 8px 20px -4px rgba(180, 130, 80, 0.25), inset 0 1px 1px #FFFFFF;">
-            <div class="text-[#8C5C26]">
+      <!-- Subtle lower-left warm bowl refraction glow inside frosted sidebar -->
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 h-64 opacity-85"
+           style="background: radial-gradient(circle 180px at 38% 82%, rgba(236, 165, 76, 0.36) 0%, rgba(244, 198, 134, 0.14) 52%, transparent 80%);">
+      </div>
+
+      <div class="flex flex-col gap-8 relative z-10">
+        <!-- Brand Section matching reference -->
+        <div class="flex flex-col items-center text-center pt-1">
+          <!-- Honey-champagne rounded square with chef hat -->
+          <div class="w-[58px] h-[58px] rounded-[18px] flex items-center justify-center relative mb-3"
+               style="background: linear-gradient(155deg, #FDF2DC 0%, #ECC37D 52%, #D7963B 100%);
+                      border: 1px solid rgba(255, 255, 255, 0.92);
+                      box-shadow: 0 10px 24px -6px rgba(185, 125, 45, 0.35), inset 0 1px 1px #FFFFFF;">
+            <div class="text-[#784816]">
               ${getIconSvg('chef-hat', 'w-8 h-8')}
             </div>
           </div>
 
-          <h1 class="text-xl font-bold tracking-tight text-[#25221F] font-sans">
+          <h1 class="text-[22px] font-serif font-medium tracking-tight text-[#221F1C] leading-snug">
             MealWeek
           </h1>
-          <p class="text-xs text-[#77716D] mt-0.5 tracking-wide">
+          <p class="text-[11.5px] text-[#6B6560] mt-0.5 tracking-wide font-normal">
             Plan. Cook. Enjoy.
           </p>
         </div>
 
         <!-- Navigation Menu -->
-        <nav class="flex flex-col gap-2">
+        <nav class="flex flex-col gap-1.5">
           ${this.renderNavItem('weekly', 'Weekly Plan', 'calendar', activePage === 'weekly')}
           ${this.renderNavItem('recipes', 'Recipes', 'book-open', activePage === 'recipes')}
           ${this.renderNavItem('ingredients', 'Ingredients', 'package', activePage === 'ingredients')}
@@ -52,7 +57,7 @@ export class Sidebar {
       </div>
 
       <!-- Bottom Brand Statement & PWA install action -->
-      <div class="flex flex-col items-center text-center gap-3 pb-2">
+      <div class="flex flex-col items-center text-center gap-3 pb-1 relative z-10">
         ${
           !state.isInstalledPwa && state.canInstallPwa
             ? `
@@ -65,11 +70,11 @@ export class Sidebar {
             : ''
         }
 
-        <div class="flex flex-col items-center text-center opacity-85">
-          <div class="text-[#8C5C26] mb-1">
+        <div class="flex flex-col items-center text-center">
+          <div class="text-white/95 mb-1.5 drop-shadow-[0_1px_4px_rgba(120,75,25,0.28)]">
             ${getIconSvg('sprout', 'w-5 h-5')}
           </div>
-          <p class="text-xs font-serif italic text-[#77716D] leading-relaxed">
+          <p class="text-[12.5px] font-sans font-normal text-white/95 leading-[1.4] tracking-wide drop-shadow-[0_1px_4px_rgba(120,75,25,0.28)]">
             Good Food.<br />Good Mood.
           </p>
         </div>
@@ -81,14 +86,14 @@ export class Sidebar {
 
   private renderNavItem(page: AppPage, label: string, icon: string, isActive: boolean): string {
     const activeClasses = isActive
-      ? 'glass-pill text-[#25221F] font-semibold shadow-sm'
-      : 'text-[#77716D] hover:text-[#25221F] hover:bg-white/30 font-medium';
+      ? 'sidebar-nav-active text-[#221F1C] font-semibold'
+      : 'text-[#4F4A46] hover:text-[#221F1C] hover:bg-white/35 font-medium';
 
     return `
       <button data-page="${page}" 
-              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm transition-all cursor-pointer ${activeClasses}">
-        <span class="${isActive ? 'text-[#8C5C26]' : 'text-[#77716D]'}">
-          ${getIconSvg(icon, 'w-4 h-4')}
+              class="w-full flex items-center gap-3 px-4 py-2.5 rounded-[16px] text-[13.5px] transition-all cursor-pointer ${activeClasses}">
+        <span class="${isActive ? 'text-[#C88428]' : 'text-[#68625D]'}">
+          ${getIconSvg(icon, 'w-[17px] h-[17px]')}
         </span>
         <span class="truncate">${label}</span>
       </button>

@@ -8,26 +8,26 @@
   --color-translucent-white: rgba(255, 255, 255, 0.48);
 
   /* Day Accent Colors matching reference */
-  --day-monday: #E8A87C;
-  --day-monday-bg: rgba(247, 195, 142, 0.14);
+  --day-monday: #E89B48;
+  --day-monday-bg: rgba(248, 204, 150, 0.42);
   
-  --day-tuesday: #7BB274;
-  --day-tuesday-bg: rgba(123, 178, 116, 0.12);
+  --day-tuesday: #6BB36D;
+  --day-tuesday-bg: rgba(178, 214, 170, 0.34);
   
-  --day-wednesday: #A07BB2;
-  --day-wednesday-bg: rgba(160, 123, 178, 0.12);
+  --day-wednesday: #9E6EC4;
+  --day-wednesday-bg: rgba(206, 182, 226, 0.34);
   
-  --day-thursday: #DE7E8A;
-  --day-thursday-bg: rgba(222, 126, 138, 0.12);
+  --day-thursday: #DC7888;
+  --day-thursday-bg: rgba(236, 184, 192, 0.36);
   
-  --day-friday: #6BAED6;
-  --day-friday-bg: rgba(107, 174, 214, 0.12);
+  --day-friday: #6CA5DA;
+  --day-friday-bg: rgba(180, 206, 234, 0.36);
   
-  --day-saturday: #E5A83B;
-  --day-saturday-bg: rgba(229, 168, 59, 0.13);
+  --day-saturday: #B5B849;
+  --day-saturday-bg: rgba(216, 220, 166, 0.38);
   
-  --day-sunday: #8E8AA0;
-  --day-sunday-bg: rgba(142, 138, 160, 0.12);
+  --day-sunday: #8087C4;
+  --day-sunday-bg: rgba(188, 194, 228, 0.36);
 
   --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

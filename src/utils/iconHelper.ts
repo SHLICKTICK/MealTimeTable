@@ -79,9 +79,9 @@ export function getIconSvg(name: string, className: string = 'w-5 h-5'): string 
       </svg>`;
 
     case 'user':
-      return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
-        <circle cx="12" cy="7" r="4"/>
+      return `<svg class="${className}" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="12" cy="8.5" r="4"/>
+        <path d="M5.5 20.5a6.5 6.5 0 0 1 13 0Z"/>
       </svg>`;
 
     case 'chart-bar':

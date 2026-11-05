@@ -79,32 +79,116 @@
   background: rgba(255, 255, 255, 0.5);
 }
 
-/* Day Accent Borders */
+/* Frosted Left Navigation Sidebar */
+.sidebar-glass {
+  background: rgba(255, 255, 255, 0.34);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-right: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    8px 0 32px -12px rgba(70, 48, 25, 0.06),
+    inset -1px 0 0 rgba(255, 255, 255, 0.6);
+}
+
+.sidebar-nav-active {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 8px 22px -6px rgba(80, 55, 30, 0.11),
+    inset 0 1px 0 #ffffff;
+}
+
+/* Two-Layer Day Card Capsules */
+.day-card-capsule {
+  position: relative;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 6px 20px -6px rgba(85, 58, 30, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.day-card-capsule:hover {
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 10px 26px -6px rgba(85, 58, 30, 0.08),
+    inset 0 1px 0 #ffffff;
+}
+
+.day-card-capsule.glass-card-active {
+  border-color: rgba(235, 198, 146, 0.92) !important;
+  box-shadow:
+    0 10px 28px -6px rgba(185, 130, 62, 0.16),
+    inset 0 0 0 1px rgba(232, 178, 102, 0.32),
+    inset 0 1px 0 #ffffff !important;
+}
+
+/* Glowing Rounded Vertical Accent Pill Bar */
+.day-card-capsule::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 14%;
+  bottom: 14%;
+  width: 4.5px;
+  border-radius: 9999px;
+  background: var(--day-accent-color, #E89B48);
+  box-shadow: 0 0 10px var(--day-accent-glow, rgba(232, 155, 72, 0.45));
+}
+
+.day-inner-glass {
+  background: rgba(255, 255, 255, 0.56);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.84);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  border-radius: 17px;
+  transition: background 0.2s ease;
+}
+
+.day-card-capsule:hover .day-inner-glass,
+.day-card-capsule.glass-card-active .day-inner-glass {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+/* Day Accent Tints & Glowing Pill Colors */
 .day-accent-monday {
-  border-left: 3.5px solid var(--day-monday);
-  background: linear-gradient(90deg, var(--day-monday-bg) 0%, rgba(255, 255, 255, 0.45) 28%);
+  --day-accent-color: #E89B48;
+  --day-accent-glow: rgba(232, 155, 72, 0.55);
+  background: linear-gradient(90deg, var(--day-monday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }
 .day-accent-tuesday {
-  border-left: 3.5px solid var(--day-tuesday);
-  background: linear-gradient(90deg, var(--day-tuesday-bg) 0%, rgba(255, 255, 255, 0.45) 28%);
+  --day-accent-color: #6BB36D;
+  --day-accent-glow: rgba(107, 179, 109, 0.5);
+  background: linear-gradient(90deg, var(--day-tuesday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }
 .day-accent-wednesday {
-  border-left: 3.5px solid var(--day-wednesday);
-  background: linear-gradient(90deg, var(--day-wednesday-bg) 0%, rgba(255, 255, 255, 0.45) 28%);
+  --day-accent-color: #9E6EC4;
+  --day-accent-glow: rgba(158, 110, 196, 0.5);
+  background: linear-gradient(90deg, var(--day-wednesday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }
 .day-accent-thursday {
-  border-left: 3.5px solid var(--day-thursday);
-  background: linear-gradient(90deg, var(--day-thursday-bg) 0%, rgba(255, 255, 255, 0.45) 28%);
+  --day-accent-color: #DC7888;
+  --day-accent-glow: rgba(220, 120, 136, 0.5);
+  background: linear-gradient(90deg, var(--day-thursday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }
 .day-accent-friday {
-  border-left: 3.5px solid var(--day-friday);
-  background: linear-gradient(90deg, var(--day-friday-bg) 0%, rgba(255, 255, 255, 0.45) 28%);
+  --day-accent-color: #6CA5DA;
+  --day-accent-glow: rgba(108, 165, 218, 0.5);
+  background: linear-gradient(90deg, var(--day-friday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }
 .day-accent-saturday {
-  border-left: 3.5px solid var(--day-saturday);
-  background: linear-gradient(90deg, var(--day-saturday-bg) 0%, rgba(255, 255, 255, 0.45) 28%);
+  --day-accent-color: #B5B849;
+  --day-accent-glow: rgba(181, 184, 73, 0.5);
+  background: linear-gradient(90deg, var(--day-saturday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }
 .day-accent-sunday {
-  border-left: 3.5px solid var(--day-sunday);
-  background: linear-gradient(90deg, var(--day-sunday-bg) 0%, rgba(255, 255, 255, 0.45) 28%);
+  --day-accent-color: #8087C4;
+  --day-accent-glow: rgba(128, 135, 196, 0.5);
+  background: linear-gradient(90deg, var(--day-sunday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }

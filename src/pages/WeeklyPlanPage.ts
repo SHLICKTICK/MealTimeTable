@@ -1,18 +1,15 @@
 import { appState } from '../app/state';
-import { WeeklyHeader } from '../components/WeeklyHeader';
 import { DayCard } from '../components/DayCard';
 import { BudgetSummary } from '../components/BudgetSummary';
 
 export class WeeklyPlanPage {
   private container: HTMLElement;
-  private header: WeeklyHeader;
   private budgetSummary: BudgetSummary;
   private dayCardList: DayCard[] = [];
 
   constructor() {
     this.container = document.createElement('div');
-    this.container.className = 'w-full flex-1 flex flex-col justify-between gap-3 select-none';
-    this.header = new WeeklyHeader();
+    this.container.className = 'w-full flex-1 flex flex-col justify-between gap-2.5 select-none';
     this.budgetSummary = new BudgetSummary();
     this.render();
   }
@@ -26,11 +23,10 @@ export class WeeklyPlanPage {
     const plan = state.currentPlan;
 
     this.container.innerHTML = '';
-    this.container.appendChild(this.header.getElement());
 
     // 7 horizontal day cards
     const daysContainer = document.createElement('div');
-    daysContainer.className = 'flex flex-col gap-2.5 flex-1';
+    daysContainer.className = 'flex flex-col gap-2.5 flex-1 justify-between';
 
     this.dayCardList = [];
     if (plan && plan.days) {
@@ -46,7 +42,6 @@ export class WeeklyPlanPage {
   }
 
   update(): void {
-    this.header.render();
     this.budgetSummary.render();
     this.render();
   }

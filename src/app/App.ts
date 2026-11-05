@@ -1,5 +1,6 @@
 import { appState, AppState, AppPage } from './state';
 import { Sidebar } from '../components/Sidebar';
+import { WeeklyHeader } from '../components/WeeklyHeader';
 import { RecipePanel } from '../components/RecipePanel';
 import { Modal } from '../components/Modal';
 import { WeeklyPlanPage } from '../pages/WeeklyPlanPage';
@@ -12,6 +13,7 @@ import { getIconSvg } from '../utils/iconHelper';
 export class App {
   private root: HTMLElement;
   private sidebar: Sidebar;
+  private weeklyHeader: WeeklyHeader;
   private recipePanel: RecipePanel;
   private modal: Modal;
 
@@ -22,9 +24,14 @@ export class App {
   private shoppingListPage: ShoppingListPage;
   private settingsPage: SettingsPage;
 
+  private currentMountedPage: AppPage | null = null;
+  private wasModalOpen: boolean = false;
+  private lastWeeklyKey: string = '';
+
   constructor(root: HTMLElement) {
     this.root = root;
     this.sidebar = new Sidebar();
+    this.weeklyHeader = new WeeklyHeader();
     this.recipePanel = new RecipePanel();
     this.modal = new Modal();
 
@@ -47,6 +54,19 @@ export class App {
     });
   }
 
+  private getMainAreaClass(page: AppPage): string {
+    return page === 'weekly'
+      ? 'flex-1 min-w-0 h-full flex flex-col overflow-y-auto overscroll-contain pr-0.5'
+      : 'flex-1 min-w-0 h-full flex flex-col glass-panel p-5 md:p-6 overflow-y-auto overscroll-contain';
+  }
+
+  private computeWeeklyKey(state: AppState): string {
+    const mealsSig = state.currentPlan?.days
+      ?.map((d) => `${d.breakfast?.recipeId || ''}:${d.breakfast?.status || ''}|${d.dinner?.recipeId || ''}:${d.dinner?.status || ''}`)
+      .join(';');
+    return `${state.weekOffset}:${state.selectedDayIndex}:${state.selectedMealType}:${state.currentPlan?.estimatedBudgetZAR || 0}:${mealsSig || ''}`;
+  }
+
   private render(): void {
     const state = appState.getState();
 
@@ -65,7 +85,7 @@ export class App {
               ? 'bg-amber-500'
               : 'bg-blue-500'
           }"></span>
-          <span>${state.toast.message}</span>
+          <span class="toast-message-text">${state.toast.message}</span>
         </div>
       `
           : ''
@@ -82,27 +102,32 @@ export class App {
           : ''
       }
 
-      <!-- Main Desktop Frame (1536 x 1024 baseline) matching reference layout -->
-      <div class="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8 flex gap-6 items-stretch relative z-10 min-h-0 overflow-hidden">
+      <!-- Main Desktop Frame matching reference layout -->
+      <div class="flex-1 w-full max-w-[1640px] mx-auto flex items-stretch relative z-10 min-h-0 overflow-hidden">
         <!-- 1. Left Sidebar -->
         <div id="sidebar-container" class="shrink-0 h-full flex flex-col min-h-0"></div>
 
-        <!-- 2. Central Workspace Content -->
-        <main id="main-content-area" class="flex-1 min-w-0 h-full flex flex-col glass-panel p-5 md:p-6 overflow-y-auto overscroll-contain">
-          <!-- Active Page renders here -->
-        </main>
+        <!-- 2. Right-of-Sidebar Workspace -->
+        <div class="flex-1 min-w-0 h-full flex flex-col px-4 pt-4 pb-20 md:px-6 md:pt-5 lg:px-8 lg:py-6 overflow-hidden">
+          <!-- Top Header Bar (spans above Day Cards + Recipe Panel on Weekly Plan) -->
+          <div id="weekly-header-container" class="${state.activePage === 'weekly' ? '' : 'hidden'}"></div>
 
-        <!-- 3. Right Recipe Detail Panel -->
-        <div id="recipe-panel-container" class="shrink-0 h-full flex flex-col min-h-0 ${state.isRecipePanelOpen ? '' : 'hidden xl:flex'}"></div>
+          <!-- Two-Column Content Row -->
+          <div class="flex-1 min-h-0 flex gap-6 items-stretch overflow-hidden">
+            <!-- Central Workspace Content -->
+            <main id="main-content-area" class="${this.getMainAreaClass(state.activePage)}">
+              <!-- Active Page renders here -->
+            </main>
+
+            <!-- Right Recipe Detail Panel -->
+            <div id="recipe-panel-container" class="shrink-0 h-full flex flex-col min-h-0 ${state.isRecipePanelOpen ? '' : 'hidden xl:flex'}"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Mobile Bottom Navigation Bar (hidden on desktop) -->
       <nav class="mobile-nav-bar fixed bottom-0 left-0 right-0 z-40 glass-panel !rounded-t-2xl !rounded-b-none border-t border-white/80 py-2.5 px-4 flex items-center justify-around shadow-lg">
-        ${this.renderMobileNavItem('weekly', 'Plan', 'calendar', state.activePage === 'weekly')}
-        ${this.renderMobileNavItem('recipes', 'Recipes', 'book-open', state.activePage === 'recipes')}
-        ${this.renderMobileNavItem('ingredients', 'Pantry', 'package', state.activePage === 'ingredients')}
-        ${this.renderMobileNavItem('shopping', 'Shopping', 'shopping-cart', state.activePage === 'shopping')}
-        ${this.renderMobileNavItem('settings', 'Settings', 'settings', state.activePage === 'settings')}
+        ${this.renderMobileNavMarkup(state.activePage)}
       </nav>
 
       <!-- Global Modal Mount -->
@@ -115,6 +140,12 @@ export class App {
       sidebarMount.appendChild(this.sidebar.getElement());
     }
 
+    const headerMount = this.root.querySelector('#weekly-header-container');
+    if (headerMount) {
+      this.weeklyHeader.render();
+      headerMount.appendChild(this.weeklyHeader.getElement());
+    }
+
     const panelMount = this.root.querySelector('#recipe-panel-container');
     if (panelMount) {
       panelMount.appendChild(this.recipePanel.getElement());
@@ -125,16 +156,26 @@ export class App {
       modalMount.appendChild(this.modal.getElement());
     }
 
+    this.lastWeeklyKey = this.computeWeeklyKey(state);
     this.mountActivePage(state.activePage);
     this.bindMobileNav();
   }
 
-  private currentMountedPage: AppPage | null = null;
-  private wasModalOpen: boolean = false;
+  private renderMobileNavMarkup(activePage: AppPage): string {
+    return `
+      ${this.renderMobileNavItem('weekly', 'Plan', 'calendar', activePage === 'weekly')}
+      ${this.renderMobileNavItem('recipes', 'Recipes', 'book-open', activePage === 'recipes')}
+      ${this.renderMobileNavItem('ingredients', 'Pantry', 'package', activePage === 'ingredients')}
+      ${this.renderMobileNavItem('shopping', 'Shopping', 'shopping-cart', activePage === 'shopping')}
+      ${this.renderMobileNavItem('settings', 'Settings', 'settings', activePage === 'settings')}
+    `;
+  }
 
   private mountActivePage(page: AppPage): void {
     const mainMount = this.root.querySelector('#main-content-area');
     if (!mainMount) return;
+
+    mainMount.className = this.getMainAreaClass(page);
 
     if (this.currentMountedPage !== page) {
       this.currentMountedPage = page;
@@ -189,9 +230,34 @@ export class App {
 
   private handleStateChange(state: AppState): void {
     this.sidebar.render();
+    this.weeklyHeader.render();
     this.recipePanel.render();
     this.modal.render();
+
+    const headerMount = this.root.querySelector('#weekly-header-container');
+    if (headerMount) {
+      headerMount.className = state.activePage === 'weekly' ? '' : 'hidden';
+    }
+
+    const panelMount = this.root.querySelector('#recipe-panel-container');
+    if (panelMount) {
+      panelMount.className = `shrink-0 h-full flex flex-col min-h-0 ${state.isRecipePanelOpen ? '' : 'hidden xl:flex'}`;
+    }
+
+    const mobileNav = this.root.querySelector('.mobile-nav-bar');
+    if (mobileNav) {
+      mobileNav.innerHTML = this.renderMobileNavMarkup(state.activePage);
+      this.bindMobileNav();
+    }
+
+    const wasWeekly = this.currentMountedPage === 'weekly';
     this.mountActivePage(state.activePage);
+
+    const nextWeeklyKey = this.computeWeeklyKey(state);
+    if (state.activePage === 'weekly' && wasWeekly && nextWeeklyKey !== this.lastWeeklyKey) {
+      this.weeklyPlanPage.update();
+    }
+    this.lastWeeklyKey = nextWeeklyKey;
 
     // Refresh page data when a modal finishes/closes
     const isModalOpen = !!state.activeModal;

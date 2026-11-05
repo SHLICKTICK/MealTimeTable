@@ -10,34 +10,18 @@
   font-family: var(--font-sans);
 }
 
-/* Background scene replicating the reference image precisely */
+/* Sunlit studio tabletop backdrop with bottom-left ceramic bowl & top-right foliage */
 .apple-bg-scene {
-  background-color: #F8F4F0;
-  background-image: 
-    /* Bottom left warm apricot glow */
-    radial-gradient(circle 540px at 4% 92%, rgba(246, 190, 133, 0.45) 0%, rgba(248, 226, 204, 0.25) 45%, transparent 75%),
-    /* Mid left subtle champagne tone */
-    radial-gradient(circle 420px at 12% 60%, rgba(244, 219, 192, 0.3) 0%, transparent 65%),
-    /* Top right soft sunlit haze */
-    radial-gradient(circle 500px at 94% 8%, rgba(245, 235, 222, 0.5) 0%, transparent 70%),
-    /* Global subtle warm ivory gradient */
-    linear-gradient(135deg, #F9F5F1 0%, #F5ECE5 50%, #FAF6F2 100%);
+  background-color: #EFE9E2;
+  background-image:
+    radial-gradient(circle 420px at 7% 86%, rgba(244, 178, 98, 0.28) 0%, rgba(246, 204, 148, 0.12) 48%, transparent 75%),
+    linear-gradient(135deg, rgba(248, 244, 240, 0.14) 0%, rgba(244, 236, 228, 0.08) 50%, rgba(248, 244, 240, 0.14) 100%),
+    url('../assets/images/studio_backdrop_1793870670341.jpg');
   background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
   background-size: cover;
   position: relative;
-}
-
-/* Botanical shadow accent in top-right corner matching reference image */
-.apple-bg-scene::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 320px;
-  height: 320px;
-  background: radial-gradient(circle at 100% 0%, rgba(70, 85, 55, 0.08) 0%, rgba(80, 95, 60, 0.03) 40%, transparent 75%);
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* Custom delicate scrollbars */
