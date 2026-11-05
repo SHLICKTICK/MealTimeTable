@@ -40,10 +40,10 @@ export class RecipesPage {
 
     this.container.innerHTML = `
       <!-- Header with Title and Create Action -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#25221F]/10">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#25221F]/8">
         <div>
-          <h2 class="text-3xl font-serif font-medium text-[#25221F]">Recipe Library</h2>
-          <p class="text-xs text-[#77716D] mt-1">Manage dishes, ingredients, portions, and dynamic ingredient-based costing</p>
+          <h2 class="text-[28px] md:text-[32px] font-serif font-normal text-[#221F1C] tracking-[-0.015em] leading-tight">Recipe Library</h2>
+          <p class="text-xs text-[#6B6560] mt-1">Manage dishes, ingredients, portions, and dynamic ingredient-based costing</p>
         </div>
 
         <div class="flex items-center gap-3">
@@ -53,12 +53,13 @@ export class RecipesPage {
                    type="text" 
                    placeholder="Search recipes or ingredients..." 
                    value="${this.searchQuery}"
-                   class="w-full pl-3 pr-8 py-2 text-xs rounded-xl glass-card focus:outline-none focus:ring-1 focus:ring-[#D9A441] text-[#25221F]" />
+                   class="w-full pl-3.5 pr-8 py-2 text-xs rounded-full bg-white/65 border border-white/90 focus:outline-none focus:ring-1 focus:ring-[#D9A441] text-[#221F1C] shadow-2xs" />
           </div>
 
           <!-- New Recipe Button -->
           <button id="btn-create-recipe" 
-                  class="px-4 py-2 rounded-xl bg-[#25221F] text-white text-xs font-medium flex items-center gap-2 hover:bg-[#3D3833] transition shadow-sm cursor-pointer whitespace-nowrap">
+                  class="px-5 py-2 rounded-full text-white text-xs font-medium flex items-center gap-2 hover:opacity-95 transition shadow-[0_6px_16px_-4px_rgba(25,22,19,0.3)] cursor-pointer whitespace-nowrap"
+                  style="background: linear-gradient(180deg, #2D2A27 0%, #191715 100%);">
             ${getIconSvg('plus', 'w-3.5 h-3.5')}
             New Recipe
           </button>
@@ -71,10 +72,10 @@ export class RecipesPage {
           .map(
             (cat) => `
           <button data-cat="${cat}" 
-                  class="btn-cat-filter px-4 py-1.5 rounded-full text-xs font-medium transition cursor-pointer ${
+                  class="btn-cat-filter px-4 py-1.5 rounded-full text-xs transition cursor-pointer ${
                     this.filterCategory === cat
-                      ? 'bg-[#25221F] text-white shadow-xs'
-                      : 'glass-card text-[#77716D] hover:text-[#25221F]'
+                      ? 'sidebar-nav-active text-[#221F1C] font-semibold'
+                      : 'glass-pill text-[#6B6560] hover:text-[#221F1C] font-medium'
                   }">
             ${cat}
           </button>
@@ -99,17 +100,17 @@ export class RecipesPage {
                   const perServingStr = cost.totalCost > 0 ? formatZAR(cost.totalCost / (recipe.servings || 1)) : null;
 
                   return `
-          <div class="recipe-item-card glass-card rounded-2xl overflow-hidden flex flex-col justify-between hover:shadow-md transition cursor-pointer group" data-id="${recipe.id}">
+          <div class="recipe-item-card rounded-[22px] bg-white/56 hover:bg-white/70 backdrop-blur-lg border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] overflow-hidden flex flex-col justify-between transition cursor-pointer group" data-id="${recipe.id}">
             <div>
               <div class="w-full h-44 overflow-hidden relative bg-[#F4E9E2]">
                 <img src="${recipe.imageUrl}" alt="${recipe.title}" 
                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                 
-                <span class="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/80 backdrop-blur-md text-[#25221F] shadow-2xs">
+                <span class="absolute top-3 left-3 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-white/85 backdrop-blur-md text-[#221F1C] shadow-2xs">
                   ${recipe.category}
                 </span>
 
-                <span class="absolute top-3 right-3 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/80 backdrop-blur-md text-[#77716D] shadow-2xs">
+                <span class="absolute top-3 right-3 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-white/85 backdrop-blur-md text-[#6B6560] shadow-2xs">
                   ${recipe.ingredients.length} ing.
                 </span>
 
@@ -126,17 +127,17 @@ export class RecipesPage {
 
               <div class="p-4 flex flex-col gap-1.5">
                 <div class="flex items-center justify-between">
-                  <h4 class="text-lg font-serif font-semibold text-[#25221F] truncate">${recipe.title}</h4>
-                  <span class="text-xs text-[#77716D] font-medium">Serves ${recipe.servings}</span>
+                  <h4 class="text-lg font-serif font-medium text-[#221F1C] truncate">${recipe.title}</h4>
+                  <span class="text-xs text-[#6B6560] font-normal">Serves ${recipe.servings}</span>
                 </div>
-                <p class="text-xs text-[#77716D] line-clamp-2 leading-relaxed">
+                <p class="text-xs text-[#6B6560] line-clamp-2 leading-relaxed">
                   ${recipe.description || 'Delicious home-cooked meal.'}
                 </p>
                 ${
                   perServingStr
                     ? `
                   <div class="flex items-center gap-1.5 text-[11px] text-[#8C5C26] font-medium pt-0.5">
-                    <span>${getIconSvg('chart-bar', 'w-3 h-3')}</span>
+                    <span>${getIconSvg('chart-bar-filled', 'w-3.5 h-3.5')}</span>
                     <span>${perServingStr} per serving</span>
                   </div>
                 `
@@ -146,16 +147,16 @@ export class RecipesPage {
             </div>
 
             <!-- Card Bottom Actions -->
-            <div class="p-4 pt-0 flex items-center justify-between gap-2 border-t border-[#25221F]/5 mt-2">
+            <div class="p-4 pt-2 flex items-center justify-between gap-2 border-t border-[#25221F]/6 mt-1">
               <button class="btn-card-details text-xs font-medium text-[#8C5C26] hover:underline cursor-pointer" data-id="${recipe.id}">
                 View Recipe &rarr;
               </button>
 
               <div class="flex items-center gap-1.5">
-                <button class="btn-card-edit p-1.5 rounded-lg hover:bg-white/60 text-[#77716D] hover:text-[#25221F] cursor-pointer" title="Edit Recipe" data-id="${recipe.id}">
+                <button class="btn-card-edit p-1.5 rounded-full hover:bg-white/80 text-[#6B6560] hover:text-[#221F1C] cursor-pointer transition" title="Edit Recipe" data-id="${recipe.id}">
                   ${getIconSvg('edit', 'w-3.5 h-3.5')}
                 </button>
-                <button class="btn-card-delete p-1.5 rounded-lg hover:bg-white/60 text-[#77716D] hover:text-rose-600 cursor-pointer" title="Delete Recipe" data-id="${recipe.id}">
+                <button class="btn-card-delete p-1.5 rounded-full hover:bg-white/80 text-[#6B6560] hover:text-rose-600 cursor-pointer transition" title="Delete Recipe" data-id="${recipe.id}">
                   ${getIconSvg('trash', 'w-3.5 h-3.5')}
                 </button>
               </div>

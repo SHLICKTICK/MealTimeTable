@@ -105,7 +105,7 @@ export class App {
       <!-- Main Desktop Frame matching reference layout -->
       <div class="flex-1 w-full max-w-[1640px] mx-auto flex items-stretch relative z-10 min-h-0 overflow-hidden">
         <!-- 1. Left Sidebar -->
-        <div id="sidebar-container" class="shrink-0 h-full flex flex-col min-h-0"></div>
+        <div id="sidebar-container" class="shrink-0 h-full flex flex-col min-h-0 lg:pb-[72px] xl:pb-[80px]"></div>
 
         <!-- 2. Right-of-Sidebar Workspace -->
         <div class="flex-1 min-w-0 h-full flex flex-col px-4 pt-4 pb-20 md:px-6 md:pt-5 lg:px-8 lg:py-6 overflow-hidden">

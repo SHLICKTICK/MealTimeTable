@@ -7,7 +7,7 @@ export class Sidebar {
   constructor() {
     this.container = document.createElement('aside');
     this.container.className =
-      'desktop-sidebar w-[225px] xl:w-[238px] shrink-0 h-full flex flex-col justify-between px-5 py-7 sidebar-glass rounded-tr-[32px] rounded-br-[32px] select-none relative overflow-hidden';
+      'desktop-sidebar w-[225px] xl:w-[238px] shrink-0 flex-1 min-h-0 flex flex-col justify-between px-5 pt-6 pb-7 sidebar-glass rounded-tr-[32px] rounded-br-[32px] select-none relative overflow-hidden';
     this.render();
   }
 
@@ -21,20 +21,20 @@ export class Sidebar {
 
     this.container.innerHTML = `
       <!-- Subtle lower-left warm bowl refraction glow inside frosted sidebar -->
-      <div class="pointer-events-none absolute inset-x-0 bottom-0 h-64 opacity-85"
-           style="background: radial-gradient(circle 180px at 38% 82%, rgba(236, 165, 76, 0.36) 0%, rgba(244, 198, 134, 0.14) 52%, transparent 80%);">
+      <div class="pointer-events-none absolute inset-x-0 bottom-0 h-56 opacity-85"
+           style="background: radial-gradient(circle 170px at 38% 82%, rgba(236, 165, 76, 0.36) 0%, rgba(244, 198, 134, 0.14) 52%, transparent 80%);">
       </div>
 
-      <div class="flex flex-col gap-8 relative z-10">
+      <div class="flex flex-col gap-6 relative z-10">
         <!-- Brand Section matching reference -->
         <div class="flex flex-col items-center text-center pt-1">
           <!-- Honey-champagne rounded square with chef hat -->
-          <div class="w-[58px] h-[58px] rounded-[18px] flex items-center justify-center relative mb-3"
+          <div class="w-[54px] h-[54px] rounded-[17px] flex items-center justify-center relative mb-2.5"
                style="background: linear-gradient(155deg, #FDF2DC 0%, #ECC37D 52%, #D7963B 100%);
                       border: 1px solid rgba(255, 255, 255, 0.92);
                       box-shadow: 0 10px 24px -6px rgba(185, 125, 45, 0.35), inset 0 1px 1px #FFFFFF;">
             <div class="text-[#784816]">
-              ${getIconSvg('chef-hat', 'w-8 h-8')}
+              ${getIconSvg('chef-hat', 'w-7 h-7')}
             </div>
           </div>
 
@@ -47,7 +47,7 @@ export class Sidebar {
         </div>
 
         <!-- Navigation Menu -->
-        <nav class="flex flex-col gap-1.5">
+        <nav class="flex flex-col gap-1">
           ${this.renderNavItem('weekly', 'Weekly Plan', 'calendar', activePage === 'weekly')}
           ${this.renderNavItem('recipes', 'Recipes', 'book-open', activePage === 'recipes')}
           ${this.renderNavItem('ingredients', 'Ingredients', 'package', activePage === 'ingredients')}

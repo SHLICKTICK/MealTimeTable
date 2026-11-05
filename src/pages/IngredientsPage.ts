@@ -6,7 +6,7 @@ import {
   calculateStockStatus,
 } from '../models/IngredientInventory';
 import { appState } from '../app/state';
-import { getIconSvg } from '../utils/iconHelper';
+import { getIconSvg, getIngredientMiniIconSvg } from '../utils/iconHelper';
 import { formatSmartQuantity } from '../utils/unitConversion';
 import { formatZAR, formatPriceRate, getItemStockValue } from '../utils/pricingUtils';
 
@@ -91,23 +91,27 @@ export class IngredientsPage {
       return 0;
     });
 
+    const wasSearchFocused = document.activeElement?.id === 'inventory-search-input';
+    const cursorPos = (document.activeElement as HTMLInputElement | null)?.selectionStart ?? null;
+
     this.container.innerHTML = `
       <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-[#25221F]/10">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-[#25221F]/8">
         <div>
-          <h2 class="text-3xl font-serif font-medium text-[#25221F]">Pantry & Ingredients</h2>
-          <p class="text-xs text-[#77716D] mt-1">Manage household stock, pricing per kg / g & L / ml, minimum levels, and pantry valuation</p>
+          <h2 class="text-[28px] md:text-[32px] font-serif font-normal text-[#221F1C] tracking-[-0.015em] leading-tight">Pantry & Ingredients</h2>
+          <p class="text-xs text-[#6B6560] mt-1">Manage household stock, pricing per kg / g & L / ml, minimum levels, and pantry valuation</p>
         </div>
 
         <div class="flex items-center gap-2.5">
           <button id="btn-view-activity-log" 
-                  class="px-3.5 py-2 rounded-xl glass-card text-xs font-medium text-[#25221F] hover:bg-white/80 transition flex items-center gap-1.5 cursor-pointer shadow-2xs">
-            ${getIconSvg('history', 'w-4 h-4 text-[#8C5C26]')}
+                  class="px-4 py-2 rounded-full glass-pill text-xs font-medium text-[#221F1C] hover:bg-white/80 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+            ${getIconSvg('history', 'w-3.5 h-3.5 text-[#8C5C26]')}
             Activity History
           </button>
 
           <button id="btn-add-inventory-item" 
-                  class="px-4 py-2 rounded-xl bg-[#25221F] text-white text-xs font-medium flex items-center gap-2 hover:bg-[#3D3833] transition shadow-sm cursor-pointer whitespace-nowrap">
+                  class="px-5 py-2 rounded-full text-white text-xs font-medium flex items-center gap-2 hover:opacity-95 transition shadow-[0_6px_16px_-4px_rgba(25,22,19,0.3)] cursor-pointer whitespace-nowrap"
+                  style="background: linear-gradient(180deg, #2D2A27 0%, #191715 100%);">
             ${getIconSvg('plus', 'w-3.5 h-3.5')}
             Add Ingredient
           </button>
@@ -116,53 +120,53 @@ export class IngredientsPage {
 
       <!-- Quick KPI Counters with Pantry Valuation -->
       <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div class="glass-card p-3.5 rounded-2xl flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-white/60 border border-white flex items-center justify-center text-[#25221F] shrink-0">
-            ${getIconSvg('package', 'w-5 h-5 text-[#8C5C26]')}
+        <div class="rounded-[22px] bg-white/58 backdrop-blur-md border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] px-4 py-3.5 flex items-center gap-3.5">
+          <div class="shrink-0 flex items-center justify-center text-[#8C5C26]">
+            ${getIconSvg('package', 'w-5 h-5')}
           </div>
           <div>
-            <span class="text-[11px] text-[#77716D] font-medium block">Total Items</span>
-            <span class="text-xl font-bold text-[#25221F] tabular-nums">${this.ingredients.length}</span>
+            <span class="text-[11.5px] text-[#6E6863] font-normal block">Total Items</span>
+            <span class="text-xl font-medium text-[#221F1C] tabular-nums leading-snug">${this.ingredients.length}</span>
           </div>
         </div>
 
-        <div class="glass-card p-3.5 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-white/70 transition" data-quick-filter="In Stock">
-          <div class="w-10 h-10 rounded-xl bg-[#F2F7F2] border border-[#D5EAD5] flex items-center justify-center text-[#4A7C4A] shrink-0">
+        <div class="rounded-[22px] bg-white/58 hover:bg-white/75 backdrop-blur-md border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] px-4 py-3.5 flex items-center gap-3.5 cursor-pointer transition" data-quick-filter="In Stock">
+          <div class="shrink-0 flex items-center justify-center text-[#4A7C4A]">
             ${getIconSvg('check-circle', 'w-5 h-5')}
           </div>
           <div>
-            <span class="text-[11px] text-[#77716D] font-medium block">In Stock</span>
-            <span class="text-xl font-bold text-[#4A7C4A] tabular-nums">${inStockCount}</span>
+            <span class="text-[11.5px] text-[#6E6863] font-normal block">In Stock</span>
+            <span class="text-xl font-medium text-[#4A7C4A] tabular-nums leading-snug">${inStockCount}</span>
           </div>
         </div>
 
-        <div class="glass-card p-3.5 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-white/70 transition" data-quick-filter="Low Stock">
-          <div class="w-10 h-10 rounded-xl bg-[#FDF7ED] border border-[#F6E1C5] flex items-center justify-center text-[#C2822B] shrink-0">
+        <div class="rounded-[22px] bg-white/58 hover:bg-white/75 backdrop-blur-md border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] px-4 py-3.5 flex items-center gap-3.5 cursor-pointer transition" data-quick-filter="Low Stock">
+          <div class="shrink-0 flex items-center justify-center text-[#C2822B]">
             ${getIconSvg('alert-triangle', 'w-5 h-5')}
           </div>
           <div>
-            <span class="text-[11px] text-[#77716D] font-medium block">Low Stock</span>
-            <span class="text-xl font-bold text-[#C2822B] tabular-nums">${lowStockCount}</span>
+            <span class="text-[11.5px] text-[#6E6863] font-normal block">Low Stock</span>
+            <span class="text-xl font-medium text-[#C2822B] tabular-nums leading-snug">${lowStockCount}</span>
           </div>
         </div>
 
-        <div class="glass-card p-3.5 rounded-2xl flex items-center gap-3 cursor-pointer hover:bg-white/70 transition" data-quick-filter="Out of Stock">
-          <div class="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+        <div class="rounded-[22px] bg-white/58 hover:bg-white/75 backdrop-blur-md border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] px-4 py-3.5 flex items-center gap-3.5 cursor-pointer transition" data-quick-filter="Out of Stock">
+          <div class="shrink-0 flex items-center justify-center text-rose-600">
             ${getIconSvg('x', 'w-5 h-5')}
           </div>
           <div>
-            <span class="text-[11px] text-[#77716D] font-medium block">Out of Stock</span>
-            <span class="text-xl font-bold text-rose-600 tabular-nums">${outOfStockCount}</span>
+            <span class="text-[11.5px] text-[#6E6863] font-normal block">Out of Stock</span>
+            <span class="text-xl font-medium text-rose-600 tabular-nums leading-snug">${outOfStockCount}</span>
           </div>
         </div>
 
-        <div class="glass-card p-3.5 rounded-2xl flex items-center gap-3 bg-gradient-to-br from-white/80 to-[#FDF8F3] border border-[#F1E0CC]/80">
-          <div class="w-10 h-10 rounded-xl bg-[#FBF5ED] border border-[#F3E2CE] flex items-center justify-center text-[#8C5C26] shrink-0">
-            ${getIconSvg('chart-bar', 'w-5 h-5 text-[#8C5C26]')}
+        <div class="rounded-[22px] bg-white/58 backdrop-blur-md border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] px-4 py-3.5 flex items-center gap-3.5">
+          <div class="shrink-0 flex items-center justify-center">
+            ${getIconSvg('chart-bar-filled', 'w-5 h-5')}
           </div>
           <div>
-            <span class="text-[11px] text-[#77716D] font-medium block">Pantry Value</span>
-            <span class="text-xl font-bold text-[#8C5C26] tabular-nums">${formatZAR(totalPantryValue)}</span>
+            <span class="text-[11.5px] text-[#6E6863] font-normal block">Pantry Value</span>
+            <span class="text-xl font-medium text-[#221F1C] tabular-nums leading-snug">${formatZAR(totalPantryValue)}</span>
           </div>
         </div>
       </div>
@@ -175,21 +179,21 @@ export class IngredientsPage {
                  type="text" 
                  placeholder="Search ingredient or location..." 
                  value="${this.searchQuery}"
-                 class="w-full pl-3 pr-8 py-2 text-xs rounded-xl glass-card focus:outline-none focus:ring-1 focus:ring-[#D9A441] text-[#25221F]" />
+                 class="w-full pl-3.5 pr-8 py-2 text-xs rounded-full bg-white/65 border border-white/90 focus:outline-none focus:ring-1 focus:ring-[#D9A441] text-[#221F1C] shadow-2xs" />
         </div>
 
         <!-- Filter and Sort Controls -->
         <div class="flex flex-wrap items-center gap-2">
           <!-- Stock Filter Tabs -->
-          <div class="flex items-center gap-1 glass-card p-1 rounded-xl">
+          <div class="flex items-center gap-1 bg-white/55 backdrop-blur-md border border-white/85 p-1 rounded-full">
             ${['All', 'In Stock', 'Low Stock', 'Out of Stock']
               .map(
                 (st) => `
               <button data-status="${st}" 
-                      class="btn-status-filter px-2.5 py-1 rounded-lg text-[11px] font-medium transition cursor-pointer ${
+                      class="btn-status-filter px-3 py-1 rounded-full text-[11px] transition cursor-pointer whitespace-nowrap ${
                         this.filterStatus === st
-                          ? 'bg-[#25221F] text-white shadow-2xs'
-                          : 'text-[#77716D] hover:text-[#25221F]'
+                          ? 'sidebar-nav-active text-[#221F1C] font-semibold'
+                          : 'text-[#6B6560] hover:text-[#221F1C] font-medium'
                       }">
                 ${st}
               </button>
@@ -199,7 +203,7 @@ export class IngredientsPage {
           </div>
 
           <!-- Location Selector -->
-          <select id="select-inventory-location" class="glass-card px-3 py-1.5 rounded-xl text-xs text-[#25221F] border border-white/80 focus:outline-none cursor-pointer">
+          <select id="select-inventory-location" class="bg-white/65 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs text-[#221F1C] border border-white/90 focus:outline-none cursor-pointer shadow-2xs">
             <option value="All" ${this.filterLocation === 'All' ? 'selected' : ''}>All Locations</option>
             <option value="Fridge" ${this.filterLocation === 'Fridge' ? 'selected' : ''}>Fridge</option>
             <option value="Pantry" ${this.filterLocation === 'Pantry' ? 'selected' : ''}>Pantry</option>
@@ -209,7 +213,7 @@ export class IngredientsPage {
           </select>
 
           <!-- Sort Selector with Price & Value Options -->
-          <select id="select-inventory-sort" class="glass-card px-3 py-1.5 rounded-xl text-xs text-[#25221F] border border-white/80 focus:outline-none cursor-pointer">
+          <select id="select-inventory-sort" class="bg-white/65 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs text-[#221F1C] border border-white/90 focus:outline-none cursor-pointer shadow-2xs">
             <option value="name" ${this.sortBy === 'name' ? 'selected' : ''}>Sort: Name (A-Z)</option>
             <option value="value-desc" ${this.sortBy === 'value-desc' ? 'selected' : ''}>Sort: Stock Value (High-Low)</option>
             <option value="price-desc" ${this.sortBy === 'price-desc' ? 'selected' : ''}>Sort: Unit Price (High-Low)</option>
@@ -222,11 +226,11 @@ export class IngredientsPage {
       </div>
 
       <!-- Inventory Table / Cards -->
-      <div class="glass-card rounded-2xl border border-white/80 shadow-xs mb-8 overflow-hidden">
+      <div class="rounded-[22px] bg-white/58 backdrop-blur-md border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] mb-8 overflow-hidden">
         <div class="overflow-x-auto w-full">
           <table class="w-full text-left border-collapse text-xs">
-            <thead class="sticky top-0 bg-[#FBF7F2]/95 backdrop-blur-md z-10 border-b border-[#25221F]/10 shadow-2xs">
-              <tr class="text-[#77716D] font-medium">
+            <thead class="sticky top-0 bg-white/75 backdrop-blur-md z-10 border-b border-[#25221F]/8">
+              <tr class="text-[#6B6560] font-medium">
                 <th class="py-3 px-4">Ingredient</th>
                 <th class="py-3 px-4">Current Stock</th>
                 <th class="py-3 px-4">Unit Price</th>
@@ -254,48 +258,51 @@ export class IngredientsPage {
                         let statusBadge = '';
                         if (status === 'In Stock') {
                           statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EAF5EA] text-[#3E703E] border border-[#D5EAD5]">
-                            <span class="w-1.5 h-1.5 rounded-full bg-[#4A7C4A]"></span>
+                            ${getIconSvg('check', 'w-3 h-3 text-[#4A7C4A]')}
                             In Stock
                           </span>`;
                         } else if (status === 'Low Stock') {
                           statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#FDF4E7] text-[#B87A24] border border-[#F6DEBD]">
-                            <span class="w-1.5 h-1.5 rounded-full bg-[#C2822B]"></span>
+                            ${getIconSvg('alert-triangle', 'w-3 h-3 text-[#C2822B]')}
                             Low Stock
                           </span>`;
                         } else {
                           statusBadge = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            ${getIconSvg('x', 'w-3 h-3 text-rose-600')}
                             Out of Stock
                           </span>`;
                         }
 
                         const lastUsedStr = item.lastUsedAt
                           ? new Date(item.lastUsedAt).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })
-                          : '<span class="text-[#77716D]/50 italic">Never used</span>';
+                          : '<span class="text-[#6B6560]/50 italic">Never used</span>';
 
                         const stockVal = getItemStockValue(item);
 
                         return `
-                    <tr class="hover:bg-white/40 transition group">
+                    <tr class="hover:bg-white/45 transition group">
                       <!-- Name & Category -->
                       <td class="py-3 px-4">
-                        <div class="flex flex-col">
-                          <span class="font-semibold text-[#25221F] text-sm">${item.name}</span>
-                          <span class="text-[11px] text-[#77716D]">${item.category}${item.notes ? ` · ${item.notes}` : ''}</span>
+                        <div class="flex items-center gap-2.5">
+                          ${getIngredientMiniIconSvg(item.name, item.category)}
+                          <div class="flex flex-col">
+                            <span class="font-semibold text-[#221F1C] text-[13.5px]">${item.name}</span>
+                            <span class="text-[11px] text-[#6B6560]">${item.category}${item.notes ? ` · ${item.notes}` : ''}</span>
+                          </div>
                         </div>
                       </td>
 
                       <!-- Quantity with Quick Stepper -->
                       <td class="py-3 px-4">
                         <div class="flex items-center gap-2">
-                          <button class="btn-quick-qty w-6 h-6 rounded-lg bg-white/70 hover:bg-white border text-[#77716D] hover:text-[#25221F] flex items-center justify-center cursor-pointer transition shadow-2xs" 
+                          <button class="btn-quick-qty w-6 h-6 rounded-full bg-white/75 hover:bg-white border border-white/90 text-[#6B6560] hover:text-[#221F1C] flex items-center justify-center cursor-pointer transition shadow-2xs" 
                                    data-id="${item.id}" data-action="dec" title="Deduct 1 ${item.unit}">
                             ${getIconSvg('minus', 'w-3 h-3')}
                           </button>
-                          <span class="font-bold text-[#25221F] tabular-nums text-sm min-w-[50px] text-center">
+                          <span class="font-semibold text-[#221F1C] tabular-nums text-[13px] min-w-[50px] text-center">
                             ${formatSmartQuantity(item.quantity, item.unit)}
                           </span>
-                          <button class="btn-quick-qty w-6 h-6 rounded-lg bg-white/70 hover:bg-white border text-[#77716D] hover:text-[#25221F] flex items-center justify-center cursor-pointer transition shadow-2xs" 
+                          <button class="btn-quick-qty w-6 h-6 rounded-full bg-white/75 hover:bg-white border border-white/90 text-[#6B6560] hover:text-[#221F1C] flex items-center justify-center cursor-pointer transition shadow-2xs" 
                                    data-id="${item.id}" data-action="inc" title="Add 1 ${item.unit}">
                             ${getIconSvg('plus', 'w-3 h-3')}
                           </button>
@@ -305,7 +312,7 @@ export class IngredientsPage {
                       <!-- Unit Price (e.g. per kg/g or per L/ml) -->
                       <td class="py-3 px-4">
                         <div class="flex flex-col">
-                          <span class="font-semibold text-[#25221F] tabular-nums text-xs">
+                          <span class="font-medium text-[#221F1C] tabular-nums text-xs">
                             ${formatPriceRate(item.price, item.priceUnit, true)}
                           </span>
                         </div>
@@ -313,7 +320,7 @@ export class IngredientsPage {
 
                       <!-- Calculated Stock Value -->
                       <td class="py-3 px-4">
-                        <span class="font-bold text-[#8C5C26] tabular-nums text-xs">
+                        <span class="font-semibold text-[#8C5C26] tabular-nums text-xs">
                           ${formatZAR(stockVal)}
                         </span>
                       </td>
@@ -324,34 +331,34 @@ export class IngredientsPage {
                       </td>
 
                       <!-- Min Stock Level -->
-                      <td class="py-3 px-4 text-[#77716D] tabular-nums">
+                      <td class="py-3 px-4 text-[#6B6560] tabular-nums">
                         ${formatSmartQuantity(item.minStockLevel, item.unit)}
                       </td>
 
                       <!-- Location -->
-                      <td class="py-3 px-4 text-[#25221F]">
-                        <span class="px-2 py-0.5 rounded-md bg-white/60 border border-white/80 text-[11px] font-medium">
+                      <td class="py-3 px-4 text-[#221F1C]">
+                        <span class="px-2.5 py-0.5 rounded-full bg-white/70 border border-white/90 text-[11px] font-medium">
                           ${item.location}
                         </span>
                       </td>
 
                       <!-- Last Used -->
-                      <td class="py-3 px-4 text-[#77716D]">
+                      <td class="py-3 px-4 text-[#6B6560]">
                         ${lastUsedStr}
                       </td>
 
                       <!-- Actions -->
                       <td class="py-3 px-4 text-right">
                         <div class="flex items-center justify-end gap-1.5">
-                          <button class="btn-item-history p-1.5 rounded-lg text-[#8C5C26] hover:bg-white/80 cursor-pointer transition" 
+                          <button class="btn-item-history p-1.5 rounded-full text-[#8C5C26] hover:bg-white/80 cursor-pointer transition" 
                                   title="View Item History" data-id="${item.id}">
                             ${getIconSvg('history', 'w-3.5 h-3.5')}
                           </button>
-                          <button class="btn-item-edit p-1.5 rounded-lg text-[#77716D] hover:text-[#25221F] hover:bg-white/80 cursor-pointer transition" 
+                          <button class="btn-item-edit p-1.5 rounded-full text-[#6B6560] hover:text-[#221F1C] hover:bg-white/80 cursor-pointer transition" 
                                   title="Edit Ingredient" data-id="${item.id}">
                             ${getIconSvg('edit', 'w-3.5 h-3.5')}
                           </button>
-                          <button class="btn-item-delete p-1.5 rounded-lg text-[#77716D] hover:text-rose-600 hover:bg-white/80 cursor-pointer transition" 
+                          <button class="btn-item-delete p-1.5 rounded-full text-[#6B6560] hover:text-rose-600 hover:bg-white/80 cursor-pointer transition" 
                                   title="Remove Ingredient" data-id="${item.id}">
                             ${getIconSvg('trash', 'w-3.5 h-3.5')}
                           </button>
@@ -369,6 +376,15 @@ export class IngredientsPage {
     `;
 
     this.bindEvents();
+    if (wasSearchFocused) {
+      const nextInput = this.container.querySelector<HTMLInputElement>('#inventory-search-input');
+      if (nextInput) {
+        nextInput.focus();
+        if (cursorPos !== null) {
+          nextInput.setSelectionRange(cursorPos, cursorPos);
+        }
+      }
+    }
   }
 
   private bindEvents(): void {
