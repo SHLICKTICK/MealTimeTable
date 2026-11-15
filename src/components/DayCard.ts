@@ -40,7 +40,7 @@ export class DayCard {
     const accentClass = DAY_ACCENT_CLASSES[this.day.dayIndex % DAY_ACCENT_CLASSES.length];
     const activeCardClass = isDayActive ? 'glass-card-active' : '';
 
-    this.container.className = `day-card-capsule ${accentClass} ${activeCardClass} pl-4 pr-2.5 py-2 flex items-center justify-between gap-3 cursor-pointer select-none transition-all`;
+    this.container.className = `day-card-capsule ${accentClass} ${activeCardClass} pl-4 pr-0 py-0 flex items-stretch justify-between gap-3 cursor-pointer select-none transition-all`;
 
     const bMeal = this.day.breakfast;
     const dMeal = this.day.dinner;
@@ -69,7 +69,7 @@ export class DayCard {
 
     this.container.innerHTML = `
       <!-- Left: Day & Date -->
-      <div class="flex flex-col w-[108px] xl:w-[122px] shrink-0 pl-1.5">
+      <div class="flex flex-col justify-center w-[108px] xl:w-[122px] shrink-0 pl-1.5 py-2.5">
         <span class="font-serif text-[17px] xl:text-[18.5px] font-medium text-[#221F1C] leading-tight">
           ${this.day.dayName}
         </span>
@@ -79,7 +79,7 @@ export class DayCard {
       </div>
 
       <!-- Right: Inner Frosted White Meal Capsule (Breakfast + Divider + Dinner + Chevron) -->
-      <div class="day-inner-glass flex-1 min-w-0 flex items-center px-3.5 py-1.5 gap-2">
+      <div class="day-inner-glass flex-1 min-w-0 self-stretch flex items-center px-3.5 py-1.5 gap-2">
         <!-- Breakfast Section -->
         <div class="meal-slot-breakfast flex-1 min-w-0 flex items-center justify-between gap-2 px-2.5 py-1 rounded-xl transition ${
           isBreakfastActive ? 'bg-white/65 shadow-2xs' : 'hover:bg-white/40'
