@@ -348,21 +348,27 @@ export const INITIAL_RECIPES: Recipe[] = [
 class RecipeService {
   private recipes: Map<string, Recipe> = new Map();
   private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
 
   async init(): Promise<void> {
     if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
 
-    const stored = await storageService.getAll<Recipe>(STORES.RECIPES);
-    if (stored && stored.length > 0) {
-      stored.forEach((r) => this.recipes.set(r.id, r));
-    } else {
-      // Seed with initial recipes
-      for (const recipe of INITIAL_RECIPES) {
-        this.recipes.set(recipe.id, recipe);
-        await storageService.set(STORES.RECIPES, recipe);
+    this.initPromise = (async () => {
+      const stored = await storageService.getAll<Recipe>(STORES.RECIPES);
+      if (stored && stored.length > 0) {
+        stored.forEach((r) => this.recipes.set(r.id, r));
+      } else {
+        // Seed with initial recipes
+        for (const recipe of INITIAL_RECIPES) {
+          this.recipes.set(recipe.id, recipe);
+          await storageService.set(STORES.RECIPES, recipe);
+        }
       }
-    }
-    this.initialized = true;
+      this.initialized = true;
+    })();
+
+    return this.initPromise;
   }
 
   async getAllRecipes(): Promise<Recipe[]> {

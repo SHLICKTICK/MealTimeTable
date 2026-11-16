@@ -2,21 +2,22 @@ import { appState } from '../app/state';
 import { recipeService, MEAL_IMAGES } from '../services/recipeService';
 import { mealPlanService } from '../services/mealPlanService';
 import { inventoryService } from '../services/inventoryService';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
 import { Recipe } from '../models/Recipe';
 import { Ingredient } from '../models/Ingredient';
+import { MasterIngredient, MasterPriceUnit } from '../models/MasterIngredient';
 import {
   IngredientInventory,
   StorageLocation,
   IngredientCategory,
 } from '../models/IngredientInventory';
 import { DAY_NAMES, getWeekDates } from '../utils/dateUtils';
-import { getIconSvg } from '../utils/iconHelper';
+import { getIconSvg, getIngredientMiniIconSvg, FoodGroup } from '../utils/iconHelper';
 import { formatSmartQuantity } from '../utils/unitConversion';
 import { aiRecipeService } from '../services/aiRecipeService';
 import {
   getAvailablePriceUnits,
   formatZAR,
-  formatPriceRate,
   calculateIngredientCost,
 } from '../utils/pricingUtils';
 
@@ -66,6 +67,9 @@ export class Modal {
         break;
       case 'inventory-activity':
         await this.renderInventoryActivity(modalData.data?.ingredient);
+        break;
+      case 'price-catalog':
+        await this.renderPriceCatalog();
         break;
       case 'assign-meal':
         await this.renderAssignMeal(modalData.data);
@@ -451,17 +455,27 @@ export class Modal {
       </div>
     `;
 
+    const nameInput = this.overlay.querySelector<HTMLInputElement>('#input-inv-name')!;
     const unitSelect = this.overlay.querySelector<HTMLSelectElement>('#select-inv-unit')!;
     const priceUnitSelect = this.overlay.querySelector<HTMLSelectElement>('#select-inv-price-unit')!;
     const priceInput = this.overlay.querySelector<HTMLInputElement>('#input-inv-price')!;
     const qtyInput = this.overlay.querySelector<HTMLInputElement>('#input-inv-qty')!;
+    const locationSelect = this.overlay.querySelector<HTMLSelectElement>('#select-inv-location')!;
+    const categorySelect = this.overlay.querySelector<HTMLSelectElement>('#select-inv-category')!;
     const totalValSpan = this.overlay.querySelector<HTMLElement>('#inventory-item-total-value')!;
     const tipSpan = this.overlay.querySelector<HTMLElement>('#price-conversion-tip')!;
+
+    let priceEditedManually = isEdit;
 
     // Helper to populate price unit dropdown based on selected measurement unit
     const updatePriceUnitOptions = (selectedUnit: string, preserveSelection?: string) => {
       const units = getAvailablePriceUnits(selectedUnit);
-      priceUnitSelect.innerHTML = units
+      const hasPreserve = preserveSelection && units.some((u) => u.value === preserveSelection);
+      const finalUnits =
+        preserveSelection && !hasPreserve
+          ? [...units, { value: preserveSelection, label: `per ${preserveSelection}` }]
+          : units;
+      priceUnitSelect.innerHTML = finalUnits
         .map(
           (u) => `
         <option value="${u.value}" ${
@@ -479,8 +493,9 @@ export class Modal {
       const pu = priceUnitSelect.value;
       const q = parseFloat(qtyInput.value) || 0;
       const u = unitSelect.value;
+      const catMatch = ingredientCatalogService.findCatalogItem(nameInput.value);
 
-      const totalCost = calculateIngredientCost(q, u, p, pu);
+      const totalCost = calculateIngredientCost(q, u, p, pu, catMatch?.avgGramsPerUnit, catMatch?.avgMlPerUnit);
       totalValSpan.textContent = formatZAR(totalCost);
 
       // Conversion tip
@@ -500,24 +515,47 @@ export class Modal {
     updatePriceUnitOptions(curUnit, curPriceUnit);
     updateLiveCalculations();
 
+    // Auto-suggest reference price & defaults from Master Ingredient Catalog for new items
+    nameInput.addEventListener('blur', () => {
+      if (priceEditedManually) return;
+      const match = ingredientCatalogService.findCatalogItem(nameInput.value);
+      if (match) {
+        priceInput.value = String(match.referencePriceZAR);
+        locationSelect.value = match.defaultLocation;
+        categorySelect.value = match.category;
+        if (match.defaultUnit && Array.from(unitSelect.options).some((o) => o.value === match.defaultUnit)) {
+          unitSelect.value = match.defaultUnit;
+        }
+        updatePriceUnitOptions(unitSelect.value, match.priceUnit);
+        updateLiveCalculations();
+        tipSpan.textContent = `Catalog ref: ${formatZAR(match.referencePriceZAR)}/${match.priceUnit}`;
+      }
+    });
+
     unitSelect.addEventListener('change', () => {
       updatePriceUnitOptions(unitSelect.value);
       updateLiveCalculations();
     });
 
-    priceUnitSelect.addEventListener('change', updateLiveCalculations);
-    priceInput.addEventListener('input', updateLiveCalculations);
+    priceUnitSelect.addEventListener('change', () => {
+      priceEditedManually = true;
+      updateLiveCalculations();
+    });
+    priceInput.addEventListener('input', () => {
+      priceEditedManually = true;
+      updateLiveCalculations();
+    });
     qtyInput.addEventListener('input', updateLiveCalculations);
 
     const form = this.overlay.querySelector<HTMLFormElement>('#inventory-editor-form');
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const name = (this.overlay.querySelector('#input-inv-name') as HTMLInputElement).value.trim();
+      const name = nameInput.value.trim();
       const qty = parseFloat(qtyInput.value) || 0;
       const unit = unitSelect.value;
       const minStock = parseFloat((this.overlay.querySelector('#input-inv-min') as HTMLInputElement).value) || 0;
-      const location = (this.overlay.querySelector('#select-inv-location') as HTMLSelectElement).value as StorageLocation;
-      const category = (this.overlay.querySelector('#select-inv-category') as HTMLSelectElement).value as IngredientCategory;
+      const location = locationSelect.value as StorageLocation;
+      const category = categorySelect.value as IngredientCategory;
       const notes = (this.overlay.querySelector('#input-inv-notes') as HTMLInputElement).value.trim();
       const price = parseFloat(priceInput.value) || 0;
       const priceUnit = priceUnitSelect.value;
@@ -550,6 +588,7 @@ export class Modal {
         appState.showToast(`Added "${name}" to pantry`, 'success');
       }
 
+      await appState.refreshBudget();
       appState.closeModal();
     });
 
@@ -685,6 +724,8 @@ export class Modal {
       return a.title.localeCompare(b.title);
     });
 
+    let chosenServings = appState.getState().defaultServings || 4;
+
     this.overlay.innerHTML = `
       <div class="glass-panel w-full max-w-lg p-6 flex flex-col gap-4 bg-white/95 rounded-3xl shadow-xl animate-fade-in max-h-[90vh]">
         <div class="flex items-center justify-between pb-2 border-b border-[#25221F]/10">
@@ -697,7 +738,19 @@ export class Modal {
           </button>
         </div>
 
-        <div class="flex flex-col gap-2 overflow-y-auto max-h-[380px] pr-1">
+        <div class="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-[#FBF7F2] border border-[#25221F]/8">
+          <div class="flex flex-col">
+            <span class="text-xs font-semibold text-[#25221F]">Servings for this meal</span>
+            <span class="text-[11px] text-[#77716D]">Defaults to your household size (${chosenServings})</span>
+          </div>
+          <div class="flex items-center gap-2 bg-white px-2.5 py-1 rounded-full border border-[#25221F]/10 shadow-xs">
+            <button type="button" id="btn-assign-servings-dec" class="w-6 h-6 rounded-full flex items-center justify-center text-sm font-semibold text-[#25221F] hover:bg-[#F2ECE4] cursor-pointer">-</button>
+            <span id="assign-servings-label" class="text-xs font-semibold text-[#25221F] min-w-[60px] text-center tabular-nums">${chosenServings} ${chosenServings === 1 ? 'person' : 'people'}</span>
+            <button type="button" id="btn-assign-servings-inc" class="w-6 h-6 rounded-full flex items-center justify-center text-sm font-semibold text-[#25221F] hover:bg-[#F2ECE4] cursor-pointer">+</button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2 overflow-y-auto max-h-[340px] pr-1">
           ${sortedRecipes
             .map(
               (r) => `
@@ -708,7 +761,7 @@ export class Modal {
                 </div>
                 <div class="flex flex-col">
                   <span class="text-sm font-semibold text-[#25221F]">${r.title}</span>
-                  <span class="text-xs text-[#77716D]">${r.category} · Serves ${r.servings} · ${r.ingredients.length} ingredients</span>
+                  <span class="text-xs text-[#77716D]">${r.category} · Base ${r.servings}p · ${r.ingredients.length} ingredients</span>
                 </div>
               </div>
               <button class="px-3 py-1.5 rounded-xl bg-[#25221F] text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition">
@@ -722,14 +775,36 @@ export class Modal {
       </div>
     `;
 
+    const servingsLabel = this.overlay.querySelector('#assign-servings-label');
+    const updateChosenServings = (next: number) => {
+      chosenServings = Math.max(1, Math.min(20, next));
+      if (servingsLabel) {
+        servingsLabel.textContent = `${chosenServings} ${chosenServings === 1 ? 'person' : 'people'}`;
+      }
+    };
+
+    this.overlay.querySelector('#btn-assign-servings-dec')?.addEventListener('click', () => {
+      updateChosenServings(chosenServings - 1);
+    });
+    this.overlay.querySelector('#btn-assign-servings-inc')?.addEventListener('click', () => {
+      updateChosenServings(chosenServings + 1);
+    });
+
     const options = this.overlay.querySelectorAll<HTMLElement>('.assign-recipe-option');
     options.forEach((opt) => {
       opt.addEventListener('click', async () => {
         const recipeId = opt.getAttribute('data-id');
         const state = appState.getState();
         if (recipeId && state.currentPlan) {
-          await mealPlanService.assignMeal(state.currentPlan.id, dayIndex, mealType, recipeId);
+          await mealPlanService.assignMeal(
+            state.currentPlan.id,
+            dayIndex,
+            mealType,
+            recipeId,
+            chosenServings
+          );
           await appState.setWeekOffset(state.weekOffset);
+          await appState.selectMeal(dayIndex, mealType);
           appState.closeModal();
         }
       });
@@ -742,7 +817,7 @@ export class Modal {
     const rTitle = recipe?.title || '';
     const rDesc = recipe?.description || '';
     const rCat = recipe?.category || 'Dinner';
-    const rServings = recipe?.servings || 4;
+    const rServings = recipe?.servings || appState.getState().defaultServings || 4;
     const rImg = recipe?.imageUrl || MEAL_IMAGES.chicken_and_rice;
     const ingredients = recipe?.ingredients || [
       { id: 'ing-1', name: '', quantity: 100, unit: 'g', category: 'Produce' },
@@ -1014,12 +1089,13 @@ export class Modal {
         const qty = parseFloat((row.querySelector('.ing-qty') as HTMLInputElement).value) || 1;
         const unit = (row.querySelector('.ing-unit') as HTMLInputElement).value || 'portion';
         if (name) {
+          const catMatch = ingredientCatalogService.findCatalogItem(name.trim());
           parsedIngredients.push({
             id: `ing-${Date.now()}-${i}`,
             name: name.trim(),
             quantity: qty,
             unit: unit.trim(),
-            category: 'Pantry',
+            category: catMatch?.category || 'Pantry',
           });
         }
       });
@@ -1040,9 +1116,303 @@ export class Modal {
       };
 
       await recipeService.saveRecipe(updatedRecipe);
-      appState.openRecipeDetail(updatedRecipe);
+      await appState.refreshBudget();
+      const latestState = appState.getState();
+      if (latestState.selectedSource === 'plan' && latestState.selectedRecipe?.id === updatedRecipe.id) {
+        await appState.selectMeal(latestState.selectedDayIndex, latestState.selectedMealType);
+      } else {
+        appState.openRecipeDetail(updatedRecipe);
+      }
       appState.closeModal();
       appState.showToast(`Recipe "${updatedRecipe.title}" saved successfully!`, 'success');
+    });
+  }
+
+  // --- Master Ingredient Reference Price Catalog Modal ---
+
+  private async renderPriceCatalog(
+    filterGroup: FoodGroup | 'all' = 'all',
+    searchQuery: string = '',
+    showAddForm: boolean = false
+  ): Promise<void> {
+    const allItems = await ingredientCatalogService.getAllCatalogItems();
+    const sorted = [...allItems].sort((a, b) => a.name.localeCompare(b.name));
+
+    const filtered = sorted.filter((item) => {
+      const matchesGroup = filterGroup === 'all' || item.foodGroup === filterGroup;
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.aliases.some((a) => a.toLowerCase().includes(q)) ||
+        item.category.toLowerCase().includes(q);
+      return matchesGroup && matchesSearch;
+    });
+
+    const groups: Array<{ id: FoodGroup | 'all'; label: string }> = [
+      { id: 'all', label: 'All Groups' },
+      { id: 'proteins', label: 'Proteins' },
+      { id: 'carbohydrates', label: 'Carbs' },
+      { id: 'dairy', label: 'Dairy' },
+      { id: 'fats-and-oils', label: 'Fats & Oils' },
+      { id: 'vegetables', label: 'Vegetables' },
+      { id: 'fruit', label: 'Fruit' },
+    ];
+
+    this.overlay.innerHTML = `
+      <div class="glass-panel w-full max-w-4xl p-6 flex flex-col gap-4 bg-white/95 rounded-3xl shadow-xl animate-fade-in max-h-[92vh]">
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-[#25221F]/10 shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-[#FAF6F0] border border-[#EFE4D6] flex items-center justify-center">
+              ${getIconSvg('chart-bar-filled', 'w-5 h-5')}
+            </div>
+            <div>
+              <h3 class="text-xl font-serif font-bold text-[#25221F]">Master Ingredient Price Catalog</h3>
+              <p class="text-xs text-[#77716D]">Reference prices per kg / L / unit used whenever an ingredient isn't priced in your pantry</p>
+            </div>
+          </div>
+          <button id="modal-close-btn" class="glass-circle-btn">
+            ${getIconSvg('x', 'w-4 h-4')}
+          </button>
+        </div>
+
+        <!-- Toolbar: Search + Add New Button -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
+          <input id="catalog-search-input" type="text" placeholder="Search catalog (e.g. chicken, rice, olive oil, egg)..."
+                 value="${searchQuery}"
+                 class="flex-1 px-3.5 py-2 text-xs rounded-full bg-white border border-[#25221F]/12 focus:outline-none focus:ring-1 focus:ring-[#D9A441] text-[#221F1C]" />
+
+          <button id="btn-toggle-add-catalog" type="button"
+                  class="px-4 py-2 rounded-full text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition ${
+                    showAddForm ? 'bg-[#FAF6F0] text-[#8C5C26] border border-[#E9D1B4]' : 'bg-[#25221F] text-white hover:bg-[#3D3833]'
+                  }">
+            ${getIconSvg('plus', 'w-3.5 h-3.5')}
+            ${showAddForm ? 'Hide Add Form' : 'Add Reference Item'}
+          </button>
+        </div>
+
+        <!-- Optional Add Reference Item Inline Form -->
+        ${
+          showAddForm
+            ? `
+          <form id="form-add-catalog-item" class="p-3.5 rounded-2xl bg-[#FAF6F0] border border-[#EFE4D6] grid grid-cols-1 sm:grid-cols-6 gap-2.5 items-end text-xs shrink-0">
+            <div class="sm:col-span-2">
+              <label class="block font-semibold text-[#25221F] mb-1">Ingredient Name *</label>
+              <input id="new-cat-name" type="text" required placeholder="e.g. Halloumi cheese"
+                     class="w-full px-3 py-1.5 rounded-xl bg-white border border-[#E0D3C3] focus:outline-none focus:ring-1 focus:ring-[#D9A441]" />
+            </div>
+            <div>
+              <label class="block font-semibold text-[#25221F] mb-1">Price (R) *</label>
+              <input id="new-cat-price" type="number" step="any" min="0" required placeholder="185"
+                     class="w-full px-3 py-1.5 rounded-xl bg-white border border-[#E0D3C3] focus:outline-none tabular-nums" />
+            </div>
+            <div>
+              <label class="block font-semibold text-[#25221F] mb-1">Basis</label>
+              <select id="new-cat-unit" class="w-full px-2.5 py-1.5 rounded-xl bg-white border border-[#E0D3C3] focus:outline-none">
+                <option value="kg" selected>per kg</option>
+                <option value="L">per L</option>
+                <option value="piece">per piece</option>
+                <option value="can">per can</option>
+                <option value="pack">per pack</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-[#25221F] mb-1">g / piece (opt.)</label>
+              <input id="new-cat-grams" type="number" step="any" min="0" placeholder="e.g. 200"
+                     class="w-full px-3 py-1.5 rounded-xl bg-white border border-[#E0D3C3] focus:outline-none tabular-nums" />
+            </div>
+            <div>
+              <button type="submit" class="w-full py-1.5 px-3 rounded-xl bg-[#25221F] text-white font-semibold hover:bg-[#3D3833] cursor-pointer">
+                Add Item
+              </button>
+            </div>
+          </form>
+        `
+            : ''
+        }
+
+        <!-- Food Group Filter Pills -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0">
+          ${groups
+            .map(
+              (g) => `
+            <button type="button" data-cat-group="${g.id}"
+                    class="btn-cat-group-filter px-3 py-1 rounded-full text-[11px] font-medium cursor-pointer transition whitespace-nowrap ${
+                      filterGroup === g.id
+                        ? 'bg-[#25221F] text-white font-semibold'
+                        : 'bg-white border border-[#25221F]/10 text-[#6B6560] hover:text-[#221F1C]'
+                    }">
+              ${g.label}
+            </button>
+          `
+            )
+            .join('')}
+        </div>
+
+        <!-- Catalog Items Table -->
+        <div class="flex-1 min-h-0 overflow-y-auto rounded-2xl border border-[#25221F]/10 bg-white/80">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead class="sticky top-0 bg-[#FAF6F0]/95 backdrop-blur-md z-10 border-b border-[#25221F]/10 text-[#6B6560]">
+              <tr>
+                <th class="py-2.5 px-3.5">Ingredient</th>
+                <th class="py-2.5 px-3">Ref. Price (ZAR)</th>
+                <th class="py-2.5 px-2.5">Basis</th>
+                <th class="py-2.5 px-2.5" title="Average weight in grams per countable unit (eggs, onions, slices)">g / unit</th>
+                <th class="py-2.5 px-3.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#25221F]/6">
+              ${
+                filtered.length === 0
+                  ? `<tr><td colspan="5" class="py-10 text-center text-[#77716D] font-serif">No catalog ingredients match "${searchQuery}".</td></tr>`
+                  : filtered
+                      .map(
+                        (item: MasterIngredient) => `
+                <tr class="catalog-row hover:bg-[#FAF6F0]/50 transition" data-id="${item.id}">
+                  <td class="py-2 px-3.5">
+                    <div class="flex items-center gap-2.5">
+                      ${getIngredientMiniIconSvg(item.name, item.category)}
+                      <div class="flex flex-col min-w-0">
+                        <span class="font-semibold text-[#221F1C] truncate">${item.name}</span>
+                        <span class="text-[10.5px] text-[#77716D] truncate">
+                          ${item.category}${item.aliases.length > 0 ? ` · ${item.aliases.slice(0, 3).join(', ')}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="py-2 px-3">
+                    <div class="relative w-28">
+                      <span class="absolute left-2.5 top-1.5 text-[#77716D] text-[11px]">R</span>
+                      <input type="number" step="any" min="0" value="${item.referencePriceZAR}"
+                             class="cat-price-input w-full pl-6 pr-2 py-1 rounded-lg bg-white border border-[#25221F]/15 focus:outline-none focus:ring-1 focus:ring-[#D9A441] font-semibold text-[#221F1C] tabular-nums" />
+                    </div>
+                  </td>
+                  <td class="py-2 px-2.5">
+                    <select class="cat-unit-select px-2 py-1 rounded-lg bg-white border border-[#25221F]/15 focus:outline-none text-[#221F1C]">
+                      ${(['kg', 'g', 'L', 'ml', 'piece', 'can', 'pack'] as MasterPriceUnit[])
+                        .map((u) => `<option value="${u}" ${item.priceUnit === u ? 'selected' : ''}>/ ${u}</option>`)
+                        .join('')}
+                    </select>
+                  </td>
+                  <td class="py-2 px-2.5">
+                    <input type="number" step="any" min="0" placeholder="—"
+                           value="${item.avgGramsPerUnit ?? ''}"
+                           class="cat-grams-input w-20 px-2 py-1 rounded-lg bg-white border border-[#25221F]/15 focus:outline-none text-[#6B6560] tabular-nums" />
+                  </td>
+                  <td class="py-2 px-3.5 text-right">
+                    <button type="button" class="btn-save-cat-row px-3 py-1 rounded-lg bg-[#25221F]/8 hover:bg-[#25221F] text-[#221F1C] hover:text-white text-[11px] font-semibold cursor-pointer transition"
+                            data-id="${item.id}">
+                      Save
+                    </button>
+                  </td>
+                </tr>
+              `
+                      )
+                      .join('')
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between pt-2 border-t border-[#25221F]/10 text-xs shrink-0">
+          <span class="text-[#77716D] tabular-nums">Showing ${filtered.length} of ${allItems.length} reference ingredients</span>
+          <div class="flex items-center gap-2.5">
+            <button type="button" id="btn-reset-catalog-defaults" class="px-3.5 py-1.5 rounded-full border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-medium cursor-pointer transition">
+              Reset Defaults
+            </button>
+            <button type="button" id="btn-done-catalog" class="px-5 py-1.5 rounded-full bg-[#25221F] text-white font-medium hover:bg-[#3D3833] cursor-pointer transition">
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Bind catalog modal interactions
+    const searchEl = this.overlay.querySelector<HTMLInputElement>('#catalog-search-input');
+    searchEl?.addEventListener('input', async (e) => {
+      const val = (e.target as HTMLInputElement).value;
+      const pos = (e.target as HTMLInputElement).selectionStart ?? val.length;
+      await this.renderPriceCatalog(filterGroup, val, showAddForm);
+      this.bindCommonEvents();
+      const refocused = this.overlay.querySelector<HTMLInputElement>('#catalog-search-input');
+      if (refocused) {
+        refocused.focus();
+        refocused.setSelectionRange(pos, pos);
+      }
+    });
+
+    this.overlay.querySelectorAll<HTMLButtonElement>('.btn-cat-group-filter').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const nextGroup = (btn.getAttribute('data-cat-group') as FoodGroup | 'all') || 'all';
+        await this.renderPriceCatalog(nextGroup, searchQuery, showAddForm);
+        this.bindCommonEvents();
+      });
+    });
+
+    this.overlay.querySelector('#btn-toggle-add-catalog')?.addEventListener('click', async () => {
+      await this.renderPriceCatalog(filterGroup, searchQuery, !showAddForm);
+      this.bindCommonEvents();
+    });
+
+    this.overlay.querySelector<HTMLFormElement>('#form-add-catalog-item')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = (this.overlay.querySelector('#new-cat-name') as HTMLInputElement)?.value.trim();
+      const price = parseFloat((this.overlay.querySelector('#new-cat-price') as HTMLInputElement)?.value || '0');
+      const priceUnit = ((this.overlay.querySelector('#new-cat-unit') as HTMLSelectElement)?.value || 'kg') as MasterPriceUnit;
+      const gramsRaw = parseFloat((this.overlay.querySelector('#new-cat-grams') as HTMLInputElement)?.value || '0');
+      if (!name || price <= 0) {
+        appState.showToast('Enter a valid name and positive reference price', 'warning');
+        return;
+      }
+      await ingredientCatalogService.addCatalogItem({
+        name,
+        referencePriceZAR: price,
+        priceUnit,
+        avgGramsPerUnit: gramsRaw > 0 ? gramsRaw : undefined,
+      });
+      await appState.refreshBudget();
+      appState.showToast(`Added "${name}" (${formatZAR(price)}/${priceUnit}) to Master Catalog`, 'success');
+      await this.renderPriceCatalog(filterGroup, searchQuery, false);
+      this.bindCommonEvents();
+    });
+
+    this.overlay.querySelectorAll<HTMLButtonElement>('.btn-save-cat-row').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const row = btn.closest('.catalog-row');
+        if (!id || !row) return;
+        const price = parseFloat((row.querySelector('.cat-price-input') as HTMLInputElement)?.value || '0');
+        const priceUnit = ((row.querySelector('.cat-unit-select') as HTMLSelectElement)?.value || 'kg') as MasterPriceUnit;
+        const gramsVal = (row.querySelector('.cat-grams-input') as HTMLInputElement)?.value;
+        const avgGrams = gramsVal ? parseFloat(gramsVal) : undefined;
+
+        const updated = await ingredientCatalogService.updateCatalogItem(id, {
+          referencePriceZAR: Math.max(0, price),
+          priceUnit,
+          avgGramsPerUnit: avgGrams && avgGrams > 0 ? avgGrams : undefined,
+        });
+        if (updated) {
+          await appState.refreshBudget();
+          appState.showToast(`Saved ${updated.name}: ${formatZAR(updated.referencePriceZAR)}/${updated.priceUnit}`, 'success');
+        }
+      });
+    });
+
+    this.overlay.querySelector('#btn-reset-catalog-defaults')?.addEventListener('click', async () => {
+      if (confirm('Reset all Master Ingredient Catalog reference prices to defaults?')) {
+        await ingredientCatalogService.resetToDefaults();
+        await appState.refreshBudget();
+        appState.showToast('Master Catalog reference prices reset to defaults', 'info');
+        await this.renderPriceCatalog(filterGroup, searchQuery, false);
+        this.bindCommonEvents();
+      }
+    });
+
+    this.overlay.querySelector('#btn-done-catalog')?.addEventListener('click', () => {
+      appState.closeModal();
     });
   }
 

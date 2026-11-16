@@ -1,4 +1,5 @@
 import { inventoryService } from '../services/inventoryService';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
 import {
   IngredientInventory,
   StockStatus,
@@ -29,6 +30,7 @@ export class IngredientsPage {
   }
 
   async loadIngredients(): Promise<void> {
+    await ingredientCatalogService.init();
     this.ingredients = await inventoryService.getAllIngredients();
     this.render();
   }
@@ -102,7 +104,13 @@ export class IngredientsPage {
           <p class="text-xs text-[#6B6560] mt-1">Manage household stock, pricing per kg / g & L / ml, minimum levels, and pantry valuation</p>
         </div>
 
-        <div class="flex items-center gap-2.5">
+        <div class="flex flex-wrap items-center gap-2.5">
+          <button id="btn-open-price-catalog" 
+                  class="px-4 py-2 rounded-full glass-pill text-xs font-medium text-[#221F1C] hover:bg-white/80 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
+            ${getIconSvg('chart-bar-filled', 'w-3.5 h-3.5')}
+            Price Catalog
+          </button>
+
           <button id="btn-view-activity-log" 
                   class="px-4 py-2 rounded-full glass-pill text-xs font-medium text-[#221F1C] hover:bg-white/80 transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap">
             ${getIconSvg('history', 'w-3.5 h-3.5 text-[#8C5C26]')}
@@ -236,8 +244,6 @@ export class IngredientsPage {
                 <th class="py-3 px-4">Unit Price</th>
                 <th class="py-3 px-4">Stock Value</th>
                 <th class="py-3 px-4">Status</th>
-                <th class="py-3 px-4">Min. Level</th>
-                <th class="py-3 px-4">Location</th>
                 <th class="py-3 px-4">Last Activity</th>
                 <th class="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -247,7 +253,7 @@ export class IngredientsPage {
                 filtered.length === 0
                   ? `
                 <tr>
-                  <td colspan="9" class="py-12 text-center text-[#77716D] font-serif">
+                  <td colspan="7" class="py-12 text-center text-[#77716D] font-serif">
                     No ingredients found matching your search and filter criteria.
                   </td>
                 </tr>
@@ -328,18 +334,6 @@ export class IngredientsPage {
                       <!-- Status -->
                       <td class="py-3 px-4">
                         ${statusBadge}
-                      </td>
-
-                      <!-- Min Stock Level -->
-                      <td class="py-3 px-4 text-[#6B6560] tabular-nums">
-                        ${formatSmartQuantity(item.minStockLevel, item.unit)}
-                      </td>
-
-                      <!-- Location -->
-                      <td class="py-3 px-4 text-[#221F1C]">
-                        <span class="px-2.5 py-0.5 rounded-full bg-white/70 border border-white/90 text-[11px] font-medium">
-                          ${item.location}
-                        </span>
                       </td>
 
                       <!-- Last Used -->
@@ -428,6 +422,11 @@ export class IngredientsPage {
       appState.openModal('add-inventory');
     });
 
+    const catalogBtn = this.container.querySelector('#btn-open-price-catalog');
+    catalogBtn?.addEventListener('click', () => {
+      appState.openModal('price-catalog');
+    });
+
     const historyBtn = this.container.querySelector('#btn-view-activity-log');
     historyBtn?.addEventListener('click', () => {
       appState.openModal('inventory-activity');
@@ -484,6 +483,7 @@ export class IngredientsPage {
         const item = this.ingredients.find((i) => i.id === id);
         if (id && item && confirm(`Remove "${item.name}" from household inventory?`)) {
           await inventoryService.deleteIngredient(id);
+          await appState.refreshBudget();
           appState.showToast(`Removed "${item.name}" from inventory`, 'info');
           await this.loadIngredients();
         }

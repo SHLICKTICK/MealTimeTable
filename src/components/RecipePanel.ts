@@ -3,6 +3,7 @@ import { getIconSvg, getIngredientMiniIconSvg } from '../utils/iconHelper';
 import { scaleIngredientsList } from '../utils/ingredientScaling';
 import { mealPlanService } from '../services/mealPlanService';
 import { inventoryService } from '../services/inventoryService';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
 import { DAY_NAMES } from '../utils/dateUtils';
 import { MealCookingStatus } from '../models/PlannedMeal';
 import {
@@ -29,12 +30,13 @@ export class RecipePanel {
     const recipe = state.selectedRecipe;
     const dayIndex = state.selectedDayIndex;
     const mealType = state.selectedMealType;
+    const isPlanContext = state.selectedSource === 'plan';
     const dayName = DAY_NAMES[dayIndex] || 'Monday';
     const mealLabel = mealType === 'breakfast' ? 'Breakfast' : 'Dinner';
-    const categoryTag = `${dayName} • ${mealLabel}`;
+    const categoryTag = isPlanContext ? `${dayName} • ${mealLabel}` : `${recipe?.category || 'Recipe'} • Library`;
 
     const currentDay = state.currentPlan?.days[dayIndex];
-    const plannedMeal = currentDay ? currentDay[mealType] : null;
+    const plannedMeal = isPlanContext && currentDay ? currentDay[mealType] : null;
     const mealStatus: MealCookingStatus = plannedMeal?.status || 'planned';
 
     if (!recipe) {
@@ -61,9 +63,18 @@ export class RecipePanel {
     }
 
     const currentServings = state.recipeDetailServings || recipe.servings || 4;
-    const scaledIngredients = scaleIngredientsList(recipe.ingredients, recipe.servings, currentServings);
+    const baseServings = recipe.servings || 4;
+    const servingsRatio = currentServings / baseServings;
+    const scaledIngredients = scaleIngredientsList(recipe.ingredients, baseServings, currentServings);
     const inventoryList = inventoryService.getLoadedIngredients();
-    const costBreakdown = calculateRecipeCostBreakdown(scaledIngredients, inventoryList);
+    const catalogList = ingredientCatalogService.getLoadedCatalog();
+    const costBreakdown = calculateRecipeCostBreakdown(
+      recipe.ingredients,
+      inventoryList,
+      servingsRatio,
+      catalogList,
+      baseServings
+    );
 
     // Compact cooking action pill aligned beside Monday • Dinner tag
     let cookActionBadge = '';
@@ -175,9 +186,16 @@ export class RecipePanel {
             costBreakdown.totalCost > 0
               ? `
             <div class="flex items-center justify-between pt-2 mt-0.5 border-t border-[#25221F]/6 text-[11px] text-[#7A746E]">
-              <span>Estimated Cost</span>
-              <span class="font-semibold text-[#8C5C26] tabular-nums">
-                ${formatZAR(costBreakdown.totalCost)} · ${formatZAR(costBreakdown.totalCost / (currentServings || 1))} / serving
+              <span class="flex items-center gap-1.5">
+                <span>Estimated Cost</span>
+                ${
+                  costBreakdown.hasCatalogEstimates
+                    ? `<span class="text-[10px] text-[#77716D]/80" title="Includes Master Ingredient Catalog reference prices">(incl. Ref. catalog)</span>`
+                    : ''
+                }
+              </span>
+              <span class="font-semibold text-[#8C5C26] tabular-nums shrink-0">
+                ${formatZAR(costBreakdown.totalCost)}
               </span>
             </div>
           `
@@ -195,11 +213,15 @@ export class RecipePanel {
           Edit Meal
         </button>
 
-        <button id="btn-remove-meal" 
+        ${
+          plannedMeal
+            ? `<button id="btn-remove-meal" 
                 class="w-11 h-11 rounded-full bg-white/75 hover:bg-white border border-white/95 flex items-center justify-center text-[#3D3935] hover:text-rose-600 shadow-sm transition cursor-pointer shrink-0"
                 title="Remove Meal from Day" aria-label="Remove Meal from Day">
           ${getIconSvg('trash', 'w-4 h-4')}
-        </button>
+        </button>`
+            : ''
+        }
       </div>
     `;
 

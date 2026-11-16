@@ -1,5 +1,6 @@
 import { recipeService } from '../services/recipeService';
 import { inventoryService } from '../services/inventoryService';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
 import { appState } from '../app/state';
 import { Recipe } from '../models/Recipe';
 import { getIconSvg } from '../utils/iconHelper';
@@ -22,6 +23,7 @@ export class RecipesPage {
   }
 
   async loadRecipes(): Promise<void> {
+    await Promise.all([inventoryService.init(), ingredientCatalogService.init()]);
     this.recipes = await recipeService.getAllRecipes();
     this.render();
   }
@@ -37,6 +39,7 @@ export class RecipesPage {
     });
 
     const inventoryList = inventoryService.getLoadedIngredients();
+    const catalogList = ingredientCatalogService.getLoadedCatalog();
 
     this.container.innerHTML = `
       <!-- Header with Title and Create Action -->
@@ -95,9 +98,9 @@ export class RecipesPage {
         `
             : filtered
                 .map((recipe) => {
-                  const cost = calculateRecipeCostBreakdown(recipe.ingredients, inventoryList);
+                  const cost = calculateRecipeCostBreakdown(recipe.ingredients, inventoryList, 1, catalogList, recipe.servings);
                   const costStr = cost.totalCost > 0 ? formatZAR(cost.totalCost) : null;
-                  const perServingStr = cost.totalCost > 0 ? formatZAR(cost.totalCost / (recipe.servings || 1)) : null;
+                  const perServingStr = cost.totalCost > 0 ? formatZAR(cost.costPerServing) : null;
 
                   return `
           <div class="recipe-item-card rounded-[22px] bg-white/56 hover:bg-white/70 backdrop-blur-lg border border-white/85 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF] overflow-hidden flex flex-col justify-between transition cursor-pointer group" data-id="${recipe.id}">
@@ -223,6 +226,7 @@ export class RecipesPage {
         const id = btn.getAttribute('data-id');
         if (id && confirm('Are you sure you want to delete this recipe?')) {
           await recipeService.deleteRecipe(id);
+          await appState.refreshBudget();
           await this.loadRecipes();
         }
       });

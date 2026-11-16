@@ -7,7 +7,7 @@ export class Sidebar {
   constructor() {
     this.container = document.createElement('aside');
     this.container.className =
-      'desktop-sidebar w-[225px] xl:w-[238px] shrink-0 flex-1 min-h-0 flex flex-col justify-between px-5 pt-6 pb-7 sidebar-glass rounded-tr-[32px] rounded-br-[32px] select-none relative overflow-hidden';
+      'desktop-sidebar w-[225px] xl:w-[238px] shrink-0 flex-1 min-h-0 flex flex-col justify-between px-5 pt-6 pb-7 sidebar-glass rounded-[28px] select-none relative overflow-hidden';
     this.render();
   }
 

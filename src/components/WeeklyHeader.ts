@@ -1,6 +1,6 @@
 import { appState } from '../app/state';
 import { getIconSvg } from '../utils/iconHelper';
-import { formatWeekSelectorLabel } from '../utils/dateUtils';
+import { formatWeekRangeLabel, formatWeekSelectorLabel } from '../utils/dateUtils';
 
 export class WeeklyHeader {
   private container: HTMLElement;
@@ -18,16 +18,25 @@ export class WeeklyHeader {
   render(): void {
     const state = appState.getState();
     const weekLabel = formatWeekSelectorLabel(state.weekOffset);
+    const weekRange = formatWeekRangeLabel(state.weekOffset);
+    const heading =
+      state.weekOffset === 0
+        ? 'This Week’s Meal Plan'
+        : state.weekOffset === 1
+        ? 'Next Week’s Meal Plan'
+        : state.weekOffset === -1
+        ? 'Last Week’s Meal Plan'
+        : 'Weekly Meal Plan';
 
     this.container.innerHTML = `
       <!-- Left Title & Center-Right Week Controls (aligned above Day Cards column) -->
       <div class="flex-1 min-w-0 flex items-center justify-between gap-4">
         <div class="flex flex-col">
           <h2 class="text-[27px] md:text-[32px] xl:text-[36px] font-serif font-normal text-[#221F1C] tracking-[-0.015em] leading-[1.08]">
-            This Week’s Meal Plan
+            ${heading}
           </h2>
           <p class="text-[12.5px] md:text-[13.5px] text-[#6B6560] mt-1 font-normal tracking-wide">
-            Monday – Sunday
+            Monday – Sunday · ${weekRange}
           </p>
         </div>
 

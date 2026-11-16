@@ -1,14 +1,26 @@
+import { MasterIngredient } from '../models/MasterIngredient';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
+import { findBestIngredientMatch } from './ingredientMatcher';
+
 /**
  * Pricing and unit-conversion utilities for ingredients (solid, liquid, and discrete units).
- * Supports South African Rand (ZAR / R) formatting and automatic rate normalization:
- * - Solids: priced per kg or per g (1 kg = 1000 g)
- * - Liquids: priced per L or per ml (1 L = 1000 ml, culinary tsp/tbsp/cup conversions)
- * - Count / items: priced per piece, unit, can, pack, etc.
+ * Supports South African Rand (ZAR / R) formatting and two-tier rate resolution:
+ * 1. Pantry Override (household inventory price if explicitly stocked/priced)
+ * 2. Master Ingredient Catalog (reference R/kg, R/L, or per-unit baseline + avgGramsPerUnit conversion)
  */
 
 export type SolidPriceUnit = 'kg' | 'g';
 export type LiquidPriceUnit = 'L' | 'ml';
 export type DiscretePriceUnit = 'piece' | 'can' | 'pack' | 'unit';
+
+export interface ResolvedPriceResult {
+  price: number;
+  priceUnit: string;
+  source: 'pantry' | 'catalog' | 'none';
+  matchedName?: string;
+  avgGramsPerUnit?: number;
+  avgMlPerUnit?: number;
+}
 
 export const SOLID_UNITS = new Set([
   'g',
@@ -121,12 +133,13 @@ export function getAvailablePriceUnits(unit: string): Array<{ value: string; lab
     ];
   }
 
-  // Discrete / countable item
+  // Discrete / countable item (also allow per kg if weighed)
   return [
     { value: 'piece', label: 'per piece / item', isDefault: true },
     { value: 'can', label: 'per can' },
     { value: 'pack', label: 'per pack' },
     { value: 'unit', label: 'per unit' },
+    { value: 'kg', label: 'per kg (R/kg)' },
   ];
 }
 
@@ -179,18 +192,20 @@ export function toBaseQuantity(quantity: number, unit: string): { amount: number
 }
 
 /**
- * Calculates the cost of an ingredient quantity based on its pricing.
- * Examples:
- * - 500 g at R85.00 / kg => R42.50
- * - 250 ml at R18.50 / L => R4.63
- * - 2 tbsp (30 ml) at R38.00 / L => R1.14
- * - 3 pieces at R4.50 / piece => R13.50
+ * Calculates the cost of an ingredient quantity based on its pricing and optional unit equivalence.
+ * Supports:
+ * - Solid qty (g, kg, oz, lb) vs Solid price (kg, g)
+ * - Liquid qty (ml, L, tsp, tbsp, cup) vs Liquid price (L, ml)
+ * - Discrete qty (pieces, large, medium, cloves, slices, whole) vs Solid R/kg using avgGramsPerUnit!
+ * - Solid qty (g, kg) vs Discrete R/piece using avgGramsPerUnit!
  */
 export function calculateIngredientCost(
   quantity: number,
   quantityUnit: string,
   price?: number,
-  priceUnit?: string
+  priceUnit?: string,
+  avgGramsPerUnit?: number,
+  avgMlPerUnit?: number
 ): number {
   if (!price || price <= 0 || !quantity || quantity <= 0) {
     return 0;
@@ -200,49 +215,118 @@ export function calculateIngredientCost(
   const base = toBaseQuantity(quantity, quantityUnit);
 
   if (base.type === 'solid') {
-    // Base is grams
-    let costPerGram = 0;
     if (pUnit === 'kg' || pUnit === 'kilogram' || pUnit === 'kilograms') {
-      costPerGram = price / 1000;
-    } else if (pUnit === 'g' || pUnit === 'gram' || pUnit === 'grams') {
-      costPerGram = price;
-    } else if (pUnit === 'mg') {
-      costPerGram = price * 1000;
-    } else {
-      // Default to per-kg if ambiguous or standard price
-      costPerGram = price > 10 ? price / 1000 : price;
+      return base.amount * (price / 1000);
     }
+    if (pUnit === 'g' || pUnit === 'gram' || pUnit === 'grams') {
+      return base.amount * price;
+    }
+    if (pUnit === 'mg') {
+      return base.amount * (price * 1000);
+    }
+    if ((pUnit === 'piece' || pUnit === 'can' || pUnit === 'pack' || pUnit === 'unit') && avgGramsPerUnit && avgGramsPerUnit > 0) {
+      return (base.amount / avgGramsPerUnit) * price;
+    }
+    // Fallback if ambiguous
+    const costPerGram = price > 10 ? price / 1000 : price;
     return base.amount * costPerGram;
   }
 
   if (base.type === 'liquid') {
-    // Base is ml
-    let costPerMl = 0;
     if (pUnit === 'l' || pUnit === 'liter' || pUnit === 'liters' || pUnit === 'litre' || pUnit === 'litres') {
-      costPerMl = price / 1000;
-    } else if (pUnit === 'ml' || pUnit === 'milliliter' || pUnit === 'milliliters') {
-      costPerMl = price;
-    } else {
-      // Default to per-liter if price > 5
-      costPerMl = price > 5 ? price / 1000 : price;
+      return base.amount * (price / 1000);
     }
+    if (pUnit === 'ml' || pUnit === 'milliliter' || pUnit === 'milliliters') {
+      return base.amount * price;
+    }
+    if ((pUnit === 'piece' || pUnit === 'can' || pUnit === 'pack' || pUnit === 'unit') && avgMlPerUnit && avgMlPerUnit > 0) {
+      return (base.amount / avgMlPerUnit) * price;
+    }
+    const costPerMl = price > 5 ? price / 1000 : price;
     return base.amount * costPerMl;
   }
 
-  // Discrete / countable
+  // Discrete / countable quantity (e.g. 4 large eggs, 2 onions, 3 garlic cloves, 4 cheese slices)
+  if (pUnit === 'kg' || pUnit === 'kilogram' || pUnit === 'kilograms') {
+    const gramsEach = avgGramsPerUnit && avgGramsPerUnit > 0 ? avgGramsPerUnit : 100;
+    return quantity * gramsEach * (price / 1000);
+  }
+  if (pUnit === 'g' || pUnit === 'gram' || pUnit === 'grams') {
+    const gramsEach = avgGramsPerUnit && avgGramsPerUnit > 0 ? avgGramsPerUnit : 100;
+    return quantity * gramsEach * price;
+  }
+  if (pUnit === 'l' || pUnit === 'liter' || pUnit === 'liters' || pUnit === 'litre' || pUnit === 'litres') {
+    const mlEach = avgMlPerUnit && avgMlPerUnit > 0 ? avgMlPerUnit : 250;
+    return quantity * mlEach * (price / 1000);
+  }
+  if (pUnit === 'ml' || pUnit === 'milliliter' || pUnit === 'milliliters') {
+    const mlEach = avgMlPerUnit && avgMlPerUnit > 0 ? avgMlPerUnit : 250;
+    return quantity * mlEach * price;
+  }
+
   return quantity * price;
+}
+
+/**
+ * Two-tier ingredient price resolver:
+ * Tier 1: User Pantry Inventory (user's live/custom price)
+ * Tier 2: Master Ingredient Catalog (global R/kg or R/L baseline + discrete weights)
+ */
+export function resolveIngredientPrice(
+  ingredientName: string,
+  inventoryList: Array<{ name: string; unit: string; price?: number; priceUnit?: string }> = [],
+  catalogList?: MasterIngredient[]
+): ResolvedPriceResult {
+  const catalog = catalogList ?? ingredientCatalogService.getLoadedCatalog();
+  const pantryMatch = findBestIngredientMatch(ingredientName, inventoryList);
+  const catalogMatch = findBestIngredientMatch(ingredientName, catalog);
+
+  if (pantryMatch && pantryMatch.price && pantryMatch.price > 0) {
+    return {
+      price: pantryMatch.price,
+      priceUnit: pantryMatch.priceUnit || catalogMatch?.priceUnit || 'kg',
+      source: 'pantry',
+      matchedName: pantryMatch.name,
+      avgGramsPerUnit: catalogMatch?.avgGramsPerUnit,
+      avgMlPerUnit: catalogMatch?.avgMlPerUnit,
+    };
+  }
+
+  if (catalogMatch && catalogMatch.referencePriceZAR > 0) {
+    return {
+      price: catalogMatch.referencePriceZAR,
+      priceUnit: catalogMatch.priceUnit,
+      source: 'catalog',
+      matchedName: catalogMatch.name,
+      avgGramsPerUnit: catalogMatch.avgGramsPerUnit,
+      avgMlPerUnit: catalogMatch.avgMlPerUnit,
+    };
+  }
+
+  return { price: 0, priceUnit: '', source: 'none' };
 }
 
 /**
  * Calculates the total monetary value of current in-stock inventory for an item.
  */
 export function getItemStockValue(item: {
+  name?: string;
   quantity: number;
   unit: string;
   price?: number;
   priceUnit?: string;
 }): number {
-  return calculateIngredientCost(item.quantity, item.unit, item.price, item.priceUnit);
+  const catalogMatch = item.name ? ingredientCatalogService.findCatalogItem(item.name) : null;
+  const price = item.price && item.price > 0 ? item.price : catalogMatch?.referencePriceZAR;
+  const priceUnit = item.priceUnit || catalogMatch?.priceUnit;
+  return calculateIngredientCost(
+    item.quantity,
+    item.unit,
+    price,
+    priceUnit,
+    catalogMatch?.avgGramsPerUnit,
+    catalogMatch?.avgMlPerUnit
+  );
 }
 
 /**
@@ -295,46 +379,63 @@ export function formatPriceRate(
 }
 
 /**
- * Calculates recipe cost by matching recipe ingredients against inventory items
- * or ingredient prices, scaling by serving ratio.
+ * Calculates recipe cost using two-tier resolution (Recipe override -> Pantry -> Master Catalog),
+ * scaling by serving ratio.
  */
 export function calculateRecipeCostBreakdown(
   ingredients: Array<{ name: string; quantity: number; unit: string; price?: number; priceUnit?: string }>,
   inventoryList: Array<{ name: string; unit: string; price?: number; priceUnit?: string }>,
-  servingsRatio = 1
+  servingsRatio = 1,
+  catalogList?: MasterIngredient[],
+  baseServings?: number
 ): {
   totalCost: number;
   costPerServing: number;
+  hasCatalogEstimates: boolean;
+  unpricedCount: number;
   items: Array<{
     name: string;
     quantity: number;
     unit: string;
     cost: number;
     rateDisplay: string;
+    source: 'pantry' | 'catalog' | 'none';
   }>;
 } {
+  const catalog = catalogList ?? ingredientCatalogService.getLoadedCatalog();
   let total = 0;
+  let hasCatalogEstimates = false;
+  let unpricedCount = 0;
+
   const items = ingredients.map((ing) => {
     const scaledQty = ing.quantity * servingsRatio;
 
-    // Match inventory pricing by ingredient name if not directly on the ingredient
     let price = ing.price;
     let priceUnit = ing.priceUnit;
+    let source: 'pantry' | 'catalog' | 'none' = price && price > 0 ? 'pantry' : 'none';
+    let avgGramsPerUnit: number | undefined;
+    let avgMlPerUnit: number | undefined;
 
     if (!price || price <= 0) {
-      const match = inventoryList.find(
-        (inv) =>
-          inv.name.trim().toLowerCase() === ing.name.trim().toLowerCase() ||
-          inv.name.toLowerCase().includes(ing.name.toLowerCase()) ||
-          ing.name.toLowerCase().includes(inv.name.toLowerCase())
-      );
-      if (match && match.price) {
-        price = match.price;
-        priceUnit = match.priceUnit;
-      }
+      const resolved = resolveIngredientPrice(ing.name, inventoryList, catalog);
+      price = resolved.price;
+      priceUnit = resolved.priceUnit;
+      source = resolved.source;
+      avgGramsPerUnit = resolved.avgGramsPerUnit;
+      avgMlPerUnit = resolved.avgMlPerUnit;
+    } else {
+      const catMatch = findBestIngredientMatch(ing.name, catalog);
+      avgGramsPerUnit = catMatch?.avgGramsPerUnit;
+      avgMlPerUnit = catMatch?.avgMlPerUnit;
     }
 
-    const cost = calculateIngredientCost(scaledQty, ing.unit, price, priceUnit);
+    if (source === 'catalog') {
+      hasCatalogEstimates = true;
+    } else if (source === 'none') {
+      unpricedCount++;
+    }
+
+    const cost = calculateIngredientCost(scaledQty, ing.unit, price, priceUnit, avgGramsPerUnit, avgMlPerUnit);
     total += cost;
 
     return {
@@ -342,13 +443,18 @@ export function calculateRecipeCostBreakdown(
       quantity: Math.round(scaledQty * 100) / 100,
       unit: ing.unit,
       cost,
-      rateDisplay: price ? formatPriceRate(price, priceUnit, false) : 'Unpriced',
+      rateDisplay: price && price > 0 ? formatPriceRate(price, priceUnit, false) : 'Unpriced',
+      source,
     };
   });
 
+  const effectiveServings = (baseServings || 4) * (servingsRatio > 0 ? servingsRatio : 1);
+
   return {
     totalCost: Math.round(total * 100) / 100,
-    costPerServing: servingsRatio > 0 ? Math.round((total / (4 * servingsRatio)) * 100) / 100 : 0,
+    costPerServing: effectiveServings > 0 ? Math.round((total / effectiveServings) * 100) / 100 : 0,
+    hasCatalogEstimates,
+    unpricedCount,
     items,
   };
 }

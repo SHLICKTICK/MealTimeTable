@@ -34,6 +34,7 @@ export class DayCard {
   render(): void {
     const state = appState.getState();
     const isDayActive = state.selectedDayIndex === this.day.dayIndex;
+    const isToday = this.day.fullDate === state.todayDateStr;
     const isBreakfastActive = isDayActive && state.selectedMealType === 'breakfast';
     const isDinnerActive = isDayActive && state.selectedMealType === 'dinner';
 
@@ -73,8 +74,9 @@ export class DayCard {
         <span class="font-serif text-[17px] xl:text-[18.5px] font-medium text-[#221F1C] leading-tight">
           ${this.day.dayName}
         </span>
-        <span class="text-[11.5px] text-[#7A746E] font-sans font-normal mt-0.5">
-          ${this.day.dateStr}
+        <span class="text-[11.5px] text-[#7A746E] font-sans font-normal mt-0.5 flex items-center gap-1">
+          <span>${this.day.dateStr}</span>
+          ${isToday ? '<span class="text-[10px] font-semibold text-[#9A5E22]">· Today</span>' : ''}
         </span>
       </div>
 
@@ -88,6 +90,7 @@ export class DayCard {
             <div class="flex items-center gap-1.5 text-[11px] font-medium text-[#B87A28]">
               ${getIconSvg('sun', 'w-3 h-3 text-[#D99B38] shrink-0')}
               <span>Breakfast</span>
+              ${bMeal ? `<span class="text-[10px] text-[#7A746E]/80 font-normal tabular-nums">· ${bMeal.servings}p</span>` : ''}
               ${bStatusBadge}
             </div>
             <span class="text-[13.5px] xl:text-[14.5px] font-medium text-[#221F1C] truncate mt-0.5">
@@ -123,6 +126,7 @@ export class DayCard {
             <div class="flex items-center gap-1.5 text-[11px] font-medium text-[#7A726B]">
               ${getIconSvg('moon', 'w-3 h-3 text-[#8C7A6B] shrink-0')}
               <span>Dinner</span>
+              ${dMeal ? `<span class="text-[10px] text-[#7A746E]/80 font-normal tabular-nums">· ${dMeal.servings}p</span>` : ''}
               ${dStatusBadge}
             </div>
             <span class="text-[13.5px] xl:text-[14.5px] font-medium text-[#221F1C] truncate mt-0.5">

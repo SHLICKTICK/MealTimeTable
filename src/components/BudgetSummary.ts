@@ -19,16 +19,16 @@ export class BudgetSummary {
     const state = appState.getState();
     const plan = state.currentPlan;
 
-    let plannedDinners = 0;
+    let plannedMeals = 0;
     if (plan) {
       plan.days.forEach((d) => {
-        if (d.dinner) plannedDinners++;
+        if (d.breakfast) plannedMeals++;
+        if (d.dinner) plannedMeals++;
       });
     }
 
-    const budget = plan ? plan.estimatedBudgetZAR : 1250.0;
-    const mealsCount = plannedDinners || 7;
-    const avgPerDay = mealsCount > 0 ? budget / 7 : 0;
+    const budget = plan ? plan.estimatedBudgetZAR : 0;
+    const avgPerDay = budget / 7;
     const formattedBudget = `R${budget.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const formattedAvg = `R${avgPerDay.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -61,7 +61,7 @@ export class BudgetSummary {
             Meals
           </span>
           <span class="text-[19px] md:text-[21px] font-medium text-[#221F1C] font-sans tabular-nums tracking-tight leading-snug">
-            ${mealsCount}
+            ${plannedMeals}
           </span>
         </div>
       </div>

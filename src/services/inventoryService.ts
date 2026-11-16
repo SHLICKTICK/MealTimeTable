@@ -10,6 +10,8 @@ import { MealCompletion, IngredientDeduction } from '../models/MealCompletion';
 import { Recipe } from '../models/Recipe';
 import { storageService, STORES } from './storageService';
 import { convertQuantity, areUnitsCompatible, formatSmartQuantity } from '../utils/unitConversion';
+import { ingredientCatalogService } from './ingredientCatalogService';
+import { findBestIngredientMatch } from '../utils/ingredientMatcher';
 
 export interface IngredientRequirementCheck {
   recipeIngredientName: string;
@@ -242,63 +244,75 @@ export const INITIAL_INVENTORY: Omit<IngredientInventory, 'id' | 'createdAt' | '
 
 class InventoryService {
   private initialized: boolean = false;
+  private initPromise: Promise<void> | null = null;
   private itemsMap: Map<string, IngredientInventory> = new Map();
 
   async init(): Promise<void> {
     if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
 
-    const stored = await storageService.getAll<IngredientInventory>(STORES.INVENTORY);
-    if (stored && stored.length > 0) {
-      for (const item of stored) {
-        // Backfill pricing if missing from previously stored records
-        if (item.price === undefined || !item.priceUnit) {
-          const match = INITIAL_INVENTORY.find((i) => i.name.toLowerCase() === item.name.toLowerCase());
-          if (match && match.price) {
-            item.price = match.price;
-            item.priceUnit = match.priceUnit;
-          } else {
-            // Sensible defaults based on unit type
-            if (item.unit === 'g' || item.unit === 'kg') {
-              item.price = 55.0;
-              item.priceUnit = 'kg';
-            } else if (item.unit === 'ml' || item.unit === 'L' || item.unit === 'l') {
-              item.price = 28.0;
-              item.priceUnit = 'L';
+    this.initPromise = (async () => {
+      await ingredientCatalogService.init();
+
+      const stored = await storageService.getAll<IngredientInventory>(STORES.INVENTORY);
+      if (stored && stored.length > 0) {
+        for (const item of stored) {
+          // Backfill pricing if missing from previously stored records
+          if (item.price === undefined || !item.priceUnit) {
+            const match = INITIAL_INVENTORY.find((i) => i.name.toLowerCase() === item.name.toLowerCase());
+            const catMatch = ingredientCatalogService.findCatalogItem(item.name);
+            if (match && match.price) {
+              item.price = match.price;
+              item.priceUnit = match.priceUnit;
+            } else if (catMatch) {
+              item.price = catMatch.referencePriceZAR;
+              item.priceUnit = catMatch.priceUnit;
             } else {
-              item.price = 6.5;
-              item.priceUnit = 'piece';
+              // Sensible defaults based on unit type
+              if (item.unit === 'g' || item.unit === 'kg') {
+                item.price = 55.0;
+                item.priceUnit = 'kg';
+              } else if (item.unit === 'ml' || item.unit === 'L' || item.unit === 'l') {
+                item.price = 28.0;
+                item.priceUnit = 'L';
+              } else {
+                item.price = 6.5;
+                item.priceUnit = 'piece';
+              }
             }
+            await storageService.set(STORES.INVENTORY, item);
           }
-          await storageService.set(STORES.INVENTORY, item);
+          this.itemsMap.set(item.id, item);
         }
-        this.itemsMap.set(item.id, item);
-      }
-    } else {
-      // Seed default inventory
-      for (const raw of INITIAL_INVENTORY) {
-        const id = `inv-${raw.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-        const item: IngredientInventory = {
-          ...raw,
-          id,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        this.itemsMap.set(id, item);
-        await storageService.set(STORES.INVENTORY, item);
+      } else {
+        // Seed default inventory
+        for (const raw of INITIAL_INVENTORY) {
+          const id = `inv-${raw.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+          const item: IngredientInventory = {
+            ...raw,
+            id,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          this.itemsMap.set(id, item);
+          await storageService.set(STORES.INVENTORY, item);
 
-        // Record initial stock transaction
-        await this.recordTransaction({
-          ingredientId: id,
-          ingredientName: item.name,
-          quantityChange: item.quantity,
-          unit: item.unit,
-          type: 'Purchase',
-          notes: 'Initial household pantry stock',
-        });
+          // Record initial stock transaction
+          await this.recordTransaction({
+            ingredientId: id,
+            ingredientName: item.name,
+            quantityChange: item.quantity,
+            unit: item.unit,
+            type: 'Purchase',
+            notes: 'Initial household pantry stock',
+          });
+        }
       }
-    }
 
-    this.initialized = true;
+      this.initialized = true;
+    })();
+
+    return this.initPromise;
   }
 
   async getAllIngredients(): Promise<IngredientInventory[]> {
@@ -317,17 +331,7 @@ class InventoryService {
 
   async findIngredientByName(name: string): Promise<IngredientInventory | null> {
     await this.init();
-    const clean = name.trim().toLowerCase();
-    for (const item of this.itemsMap.values()) {
-      if (item.name.toLowerCase() === clean) return item;
-    }
-    // Partial search (e.g. "chicken" matches "Chicken pieces")
-    for (const item of this.itemsMap.values()) {
-      if (item.name.toLowerCase().includes(clean) || clean.includes(item.name.toLowerCase())) {
-        return item;
-      }
-    }
-    return null;
+    return findBestIngredientMatch(name, this.getLoadedIngredients());
   }
 
   async addIngredient(
@@ -654,13 +658,16 @@ class InventoryService {
         notes: `Restocked via shopping list (${formatSmartQuantity(quantity, unit)})`,
       });
     } else {
+      const catMatch = ingredientCatalogService.findCatalogItem(ingredientName);
       const newIng = await this.addIngredient({
         name: ingredientName,
         quantity,
         unit,
         minStockLevel: Math.round(quantity * 0.3),
-        location,
-        category,
+        location: catMatch?.defaultLocation || location,
+        category: catMatch?.category || category,
+        price: catMatch?.referencePriceZAR,
+        priceUnit: catMatch?.priceUnit,
         notes: 'Added from shopping list',
       });
       await this.recordTransaction({

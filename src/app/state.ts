@@ -3,6 +3,9 @@ import { WeeklyPlan } from '../models/WeeklyPlan';
 import { recipeService } from '../services/recipeService';
 import { mealPlanService } from '../services/mealPlanService';
 import { inventoryService } from '../services/inventoryService';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
+import { storageService, STORES } from '../services/storageService';
+import { formatLocalISODate, getCurrentDayIndex, getWeekDates } from '../utils/dateUtils';
 
 export type AppPage = 'weekly' | 'recipes' | 'ingredients' | 'shopping' | 'settings';
 
@@ -15,7 +18,8 @@ export type ModalType =
   | 'meal-completion'
   | 'add-inventory'
   | 'edit-inventory'
-  | 'inventory-activity';
+  | 'inventory-activity'
+  | 'price-catalog';
 
 export interface ToastNotification {
   id: string;
@@ -26,10 +30,14 @@ export interface ToastNotification {
 export interface AppState {
   activePage: AppPage;
   weekOffset: number;
+  lockedWeekId: string;
+  todayDateStr: string;
   currentPlan: WeeklyPlan | null;
   selectedDayIndex: number;
   selectedMealType: 'breakfast' | 'dinner';
+  selectedSource: 'plan' | 'library';
   selectedRecipe: Recipe | null;
+  defaultServings: number;
   recipeDetailServings: number;
   isRecipePanelOpen: boolean;
   activeModal: {
@@ -50,10 +58,14 @@ class StateManager {
   private state: AppState = {
     activePage: 'weekly',
     weekOffset: 0,
+    lockedWeekId: getWeekDates(0).weekId,
+    todayDateStr: formatLocalISODate(),
     currentPlan: null,
-    selectedDayIndex: 0, // Monday
-    selectedMealType: 'dinner', // Chicken & Rice
+    selectedDayIndex: getCurrentDayIndex(),
+    selectedMealType: 'dinner',
+    selectedSource: 'plan',
     selectedRecipe: null,
+    defaultServings: 4,
     recipeDetailServings: 4,
     isRecipePanelOpen: true,
     activeModal: null,
@@ -67,6 +79,8 @@ class StateManager {
   private listeners: Set<Listener> = new Set();
   private deferredPwaPrompt: any = null;
   private toastTimer: any = null;
+  private rolloverTimer: any = null;
+  private watchersInitialized: boolean = false;
 
   getState(): AppState {
     return { ...this.state };
@@ -82,7 +96,10 @@ class StateManager {
     this.listeners.forEach((fn) => fn(currentState));
   }
 
-  async init(): Promise<void> {
+  private setupGlobalWatchers(): void {
+    if (this.watchersInitialized) return;
+    this.watchersInitialized = true;
+
     if (typeof window !== 'undefined') {
       const isStandalone =
         window.matchMedia('(display-mode: standalone)').matches ||
@@ -111,22 +128,160 @@ class StateManager {
         this.deferredPwaPrompt = null;
         this.notify();
       });
+
+      window.addEventListener('focus', () => {
+        this.checkWeekRollover();
+      });
     }
 
-    // Initialize inventory service & seed pantry
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.checkWeekRollover();
+        }
+      });
+    }
+
+    this.scheduleRolloverCheck();
+  }
+
+  private scheduleRolloverCheck(): void {
+    if (typeof window === 'undefined') return;
+    if (this.rolloverTimer) clearTimeout(this.rolloverTimer);
+
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 2);
+    const msUntilMidnight = Math.max(1000, nextMidnight.getTime() - now.getTime());
+    const waitMs = Math.min(msUntilMidnight, 3_600_000);
+
+    this.rolloverTimer = setTimeout(() => {
+      this.checkWeekRollover();
+    }, waitMs);
+  }
+
+  async init(referenceDate: Date = new Date()): Promise<void> {
+    this.setupGlobalWatchers();
+
+    // Initialize master catalog & pantry inventory before weekly budget calculation
+    await ingredientCatalogService.init();
     await inventoryService.init();
 
-    // Load initial week plan and select Monday Dinner (Chicken & Rice)
-    const plan = await mealPlanService.getWeekPlan(this.state.weekOffset);
-    this.state.currentPlan = plan;
-
-    const mondayDinner = plan.days[0]?.dinner;
-    if (mondayDinner) {
-      const rec = await recipeService.getRecipeById(mondayDinner.recipeId);
-      this.state.selectedRecipe = rec;
-      this.state.recipeDetailServings = rec ? rec.servings : 4;
+    // Load persisted household default servings
+    const savedDefaultServings = await storageService.get<{ key: string; value: number }>(
+      STORES.SETTINGS,
+      'defaultServings'
+    );
+    if (savedDefaultServings && typeof savedDefaultServings.value === 'number' && savedDefaultServings.value >= 1) {
+      this.state.defaultServings = Math.max(1, Math.min(20, Math.round(savedDefaultServings.value)));
     }
 
+    // Lock into the current Monday–Sunday week and detect rollover since last visit
+    const { weekId, dayDates } = getWeekDates(0, referenceDate);
+    const todayStr = formatLocalISODate(referenceDate);
+    const todayIdx = getCurrentDayIndex(referenceDate);
+
+    const savedWeekAnchor = await storageService.get<{ key: string; value: string }>(
+      STORES.SETTINGS,
+      'activeWeekAnchor'
+    );
+    const didRollOver = !!(savedWeekAnchor?.value && savedWeekAnchor.value !== weekId);
+    if (!savedWeekAnchor || savedWeekAnchor.value !== weekId) {
+      await storageService.set(STORES.SETTINGS, { key: 'activeWeekAnchor', value: weekId });
+    }
+
+    this.state.lockedWeekId = weekId;
+    this.state.todayDateStr = todayStr;
+    this.state.weekOffset = 0;
+
+    // Load locked Monday–Sunday plan for this week
+    const plan = await mealPlanService.getWeekPlan(0, referenceDate);
+    this.state.currentPlan = plan;
+    this.state.selectedSource = 'plan';
+
+    // Focus today's meal slot (or first available meal in the week)
+    const todayPlan = plan.days[todayIdx];
+    const initialMeal = todayPlan?.dinner || todayPlan?.breakfast || plan.days[0]?.dinner || null;
+    if (initialMeal) {
+      this.state.selectedDayIndex = initialMeal.dayIndex;
+      this.state.selectedMealType = initialMeal.mealType;
+      const rec = await recipeService.getRecipeById(initialMeal.recipeId);
+      this.state.selectedRecipe = rec;
+      this.state.recipeDetailServings =
+        initialMeal.servings || (rec ? rec.servings : this.state.defaultServings);
+    } else {
+      this.state.selectedDayIndex = todayIdx;
+      this.state.selectedMealType = 'dinner';
+      this.state.selectedRecipe = null;
+      this.state.recipeDetailServings = this.state.defaultServings;
+    }
+
+    this.notify();
+
+    if (didRollOver) {
+      this.showToast(
+        `New week locked in (${dayDates[0].dateStr} – ${dayDates[6].dateStr})`,
+        'info'
+      );
+    }
+  }
+
+  async checkWeekRollover(referenceDate: Date = new Date()): Promise<boolean> {
+    const { weekId, dayDates } = getWeekDates(0, referenceDate);
+    const todayStr = formatLocalISODate(referenceDate);
+    const todayIdx = getCurrentDayIndex(referenceDate);
+
+    if (weekId !== this.state.lockedWeekId) {
+      await storageService.set(STORES.SETTINGS, { key: 'activeWeekAnchor', value: weekId });
+      this.state.lockedWeekId = weekId;
+      this.state.todayDateStr = todayStr;
+      this.state.weekOffset = 0;
+
+      const plan = await mealPlanService.getWeekPlan(0, referenceDate);
+      this.state.currentPlan = plan;
+      this.state.selectedSource = 'plan';
+
+      const todayPlan = plan.days[todayIdx];
+      const meal = todayPlan?.dinner || todayPlan?.breakfast || null;
+      if (meal) {
+        this.state.selectedDayIndex = meal.dayIndex;
+        this.state.selectedMealType = meal.mealType;
+        const rec = await recipeService.getRecipeById(meal.recipeId);
+        this.state.selectedRecipe = rec;
+        this.state.recipeDetailServings =
+          meal.servings || (rec ? rec.servings : this.state.defaultServings);
+      } else {
+        this.state.selectedDayIndex = todayIdx;
+        this.state.selectedMealType = 'dinner';
+        this.state.selectedRecipe = null;
+        this.state.recipeDetailServings = this.state.defaultServings;
+      }
+
+      this.scheduleRolloverCheck();
+      this.notify();
+      this.showToast(
+        `Monday rollover — now planning ${dayDates[0].dateStr} – ${dayDates[6].dateStr}`,
+        'info'
+      );
+      return true;
+    }
+
+    if (todayStr !== this.state.todayDateStr) {
+      this.state.todayDateStr = todayStr;
+      this.notify();
+    }
+
+    this.scheduleRolloverCheck();
+    return false;
+  }
+
+  async refreshBudget(): Promise<void> {
+    this.state.currentPlan = await mealPlanService.refreshPlanBudget(this.state.weekOffset);
+    if (this.state.selectedRecipe) {
+      const fresh = await recipeService.getRecipeById(this.state.selectedRecipe.id);
+      if (fresh) {
+        this.state.selectedRecipe = fresh;
+      }
+    }
     this.notify();
   }
 
@@ -142,7 +297,10 @@ class StateManager {
     const currentDay = this.state.currentPlan.days[this.state.selectedDayIndex];
     const meal = currentDay ? currentDay[this.state.selectedMealType] : null;
     if (meal) {
-      this.state.selectedRecipe = await recipeService.getRecipeById(meal.recipeId);
+      this.state.selectedSource = 'plan';
+      const rec = await recipeService.getRecipeById(meal.recipeId);
+      this.state.selectedRecipe = rec;
+      this.state.recipeDetailServings = meal.servings || (rec ? rec.servings : this.state.defaultServings);
     }
 
     this.notify();
@@ -151,6 +309,7 @@ class StateManager {
   async selectMeal(dayIndex: number, mealType: 'breakfast' | 'dinner'): Promise<void> {
     this.state.selectedDayIndex = dayIndex;
     this.state.selectedMealType = mealType;
+    this.state.selectedSource = 'plan';
     this.state.isRecipePanelOpen = true;
 
     if (this.state.currentPlan) {
@@ -159,23 +318,56 @@ class StateManager {
       if (meal) {
         const rec = await recipeService.getRecipeById(meal.recipeId);
         this.state.selectedRecipe = rec;
-        this.state.recipeDetailServings = rec ? rec.servings : 4;
+        this.state.recipeDetailServings = meal.servings || (rec ? rec.servings : this.state.defaultServings);
       } else {
         this.state.selectedRecipe = null;
+        this.state.recipeDetailServings = this.state.defaultServings;
       }
     }
 
     this.notify();
   }
 
-  setRecipeDetailServings(servings: number): void {
-    this.state.recipeDetailServings = Math.max(1, servings);
+  async setDefaultServings(servings: number, applyToCurrentWeek: boolean = false): Promise<void> {
+    const clean = Math.max(1, Math.min(20, Math.round(servings)));
+    this.state.defaultServings = clean;
+    await storageService.set(STORES.SETTINGS, { key: 'defaultServings', value: clean });
+
+    if (applyToCurrentWeek && this.state.currentPlan) {
+      this.state.currentPlan = await mealPlanService.applyServingsToWeek(this.state.currentPlan.id, clean);
+      if (this.state.selectedSource === 'plan') {
+        this.state.recipeDetailServings = clean;
+      }
+    } else if (this.state.selectedSource === 'library' && this.state.selectedRecipe) {
+      this.state.recipeDetailServings = clean;
+    }
+
     this.notify();
   }
 
+  async setRecipeDetailServings(servings: number): Promise<void> {
+    const clean = Math.max(1, Math.min(20, Math.round(servings)));
+    this.state.recipeDetailServings = clean;
+    this.notify();
+
+    if (
+      this.state.selectedSource === 'plan' &&
+      this.state.currentPlan?.days[this.state.selectedDayIndex]?.[this.state.selectedMealType]
+    ) {
+      this.state.currentPlan = await mealPlanService.updateMealServings(
+        this.state.currentPlan.id,
+        this.state.selectedDayIndex,
+        this.state.selectedMealType,
+        clean
+      );
+      this.notify();
+    }
+  }
+
   openRecipeDetail(recipe: Recipe): void {
+    this.state.selectedSource = 'library';
     this.state.selectedRecipe = recipe;
-    this.state.recipeDetailServings = recipe.servings || 4;
+    this.state.recipeDetailServings = recipe.servings || this.state.defaultServings;
     this.state.isRecipePanelOpen = true;
     this.notify();
   }

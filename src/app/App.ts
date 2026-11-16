@@ -45,13 +45,17 @@ export class App {
   }
 
   private async init(): Promise<void> {
-    await appState.init();
     this.render();
-
-    // Subscribe to state updates
     appState.subscribe((state) => {
       this.handleStateChange(state);
     });
+
+    try {
+      await appState.init();
+      this.handleStateChange(appState.getState());
+    } catch (err) {
+      console.error('Failed during MealWeek initialization:', err);
+    }
   }
 
   private getMainAreaClass(page: AppPage): string {
@@ -60,11 +64,18 @@ export class App {
       : 'flex-1 min-w-0 h-full flex flex-col glass-panel p-5 md:p-6 overflow-y-auto overscroll-contain';
   }
 
+  private getWeeklyHeaderClass(page: AppPage): string {
+    return `${page === 'weekly' ? '' : 'hidden '}px-4 md:px-6 lg:pl-[281px] xl:pl-[294px] lg:pr-8 shrink-0`;
+  }
+
   private computeWeeklyKey(state: AppState): string {
     const mealsSig = state.currentPlan?.days
-      ?.map((d) => `${d.breakfast?.recipeId || ''}:${d.breakfast?.status || ''}|${d.dinner?.recipeId || ''}:${d.dinner?.status || ''}`)
+      ?.map(
+        (d) =>
+          `${d.breakfast?.recipeId || ''}:${d.breakfast?.status || ''}:${d.breakfast?.servings || ''}|${d.dinner?.recipeId || ''}:${d.dinner?.status || ''}:${d.dinner?.servings || ''}`
+      )
       .join(';');
-    return `${state.weekOffset}:${state.selectedDayIndex}:${state.selectedMealType}:${state.currentPlan?.estimatedBudgetZAR || 0}:${mealsSig || ''}`;
+    return `${state.lockedWeekId}:${state.todayDateStr}:${state.weekOffset}:${state.currentPlan?.id || ''}:${state.selectedDayIndex}:${state.selectedMealType}:${state.currentPlan?.estimatedBudgetZAR || 0}:${mealsSig || ''}`;
   }
 
   private render(): void {
@@ -103,17 +114,17 @@ export class App {
       }
 
       <!-- Main Desktop Frame matching reference layout -->
-      <div class="flex-1 w-full max-w-[1640px] mx-auto flex items-stretch relative z-10 min-h-0 overflow-hidden">
-        <!-- 1. Left Sidebar -->
-        <div id="sidebar-container" class="shrink-0 h-full flex flex-col min-h-0 lg:pb-6"></div>
+      <div class="flex-1 w-full max-w-[1640px] mx-auto flex flex-col pt-4 pb-20 md:pt-5 lg:py-6 relative z-10 min-h-0 overflow-hidden">
+        <!-- Top Header Bar (spans above Day Cards + Recipe Panel on Weekly Plan) -->
+        <div id="weekly-header-container" class="${this.getWeeklyHeaderClass(state.activePage)}"></div>
 
-        <!-- 2. Right-of-Sidebar Workspace -->
-        <div class="flex-1 min-w-0 h-full flex flex-col px-4 pt-4 pb-20 md:px-6 md:pt-5 lg:px-8 lg:py-6 overflow-hidden">
-          <!-- Top Header Bar (spans above Day Cards + Recipe Panel on Weekly Plan) -->
-          <div id="weekly-header-container" class="${state.activePage === 'weekly' ? '' : 'hidden'}"></div>
+        <!-- Three-Column Content Row: Left Sidebar + Central Page + Right Recipe Panel -->
+        <div class="flex-1 min-h-0 flex items-stretch overflow-hidden px-4 md:px-6 lg:px-8">
+          <!-- 1. Left Sidebar -->
+          <div id="sidebar-container" class="hidden lg:flex shrink-0 h-full flex-col min-h-0 lg:mr-6"></div>
 
-          <!-- Two-Column Content Row -->
-          <div class="flex-1 min-h-0 flex gap-6 items-stretch overflow-hidden">
+          <!-- Two-Column Workspace Row -->
+          <div class="flex-1 min-w-0 h-full flex gap-6 items-stretch overflow-hidden">
             <!-- Central Workspace Content -->
             <main id="main-content-area" class="${this.getMainAreaClass(state.activePage)}">
               <!-- Active Page renders here -->
@@ -236,7 +247,7 @@ export class App {
 
     const headerMount = this.root.querySelector('#weekly-header-container');
     if (headerMount) {
-      headerMount.className = state.activePage === 'weekly' ? '' : 'hidden';
+      headerMount.className = this.getWeeklyHeaderClass(state.activePage);
     }
 
     const panelMount = this.root.querySelector('#recipe-panel-container');
@@ -250,12 +261,18 @@ export class App {
       this.bindMobileNav();
     }
 
-    const wasWeekly = this.currentMountedPage === 'weekly';
+    const prevPage = this.currentMountedPage;
     this.mountActivePage(state.activePage);
 
     const nextWeeklyKey = this.computeWeeklyKey(state);
-    if (state.activePage === 'weekly' && wasWeekly && nextWeeklyKey !== this.lastWeeklyKey) {
-      this.weeklyPlanPage.update();
+    if (prevPage === state.activePage && nextWeeklyKey !== this.lastWeeklyKey) {
+      if (state.activePage === 'weekly') {
+        this.weeklyPlanPage.update();
+      } else if (state.activePage === 'shopping') {
+        this.shoppingListPage.loadItems();
+      } else if (state.activePage === 'settings') {
+        this.settingsPage.render();
+      }
     }
     this.lastWeeklyKey = nextWeeklyKey;
 
@@ -270,6 +287,8 @@ export class App {
         this.weeklyPlanPage.update();
       } else if (state.activePage === 'shopping') {
         this.shoppingListPage.loadItems();
+      } else if (state.activePage === 'settings') {
+        this.settingsPage.render();
       }
     }
     this.wasModalOpen = isModalOpen;

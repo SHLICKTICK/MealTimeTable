@@ -1,7 +1,9 @@
 import { appState } from '../app/state';
 import { recipeService } from '../services/recipeService';
 import { mealPlanService } from '../services/mealPlanService';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
 import { getIconSvg } from '../utils/iconHelper';
+import { formatZAR } from '../utils/pricingUtils';
 
 export class SettingsPage {
   private container: HTMLElement;
@@ -90,14 +92,21 @@ export class SettingsPage {
               </div>
             </div>
 
-            <div class="py-2">
-              <label class="text-xs text-[#6B6560] block mb-2.5">Default Recipe Portions</label>
+            <div class="py-2 space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-[#6B6560]">Default Household Portions</label>
+                <div class="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-full border border-white shadow-xs">
+                  <button id="btn-default-servings-dec" class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-[#221F1C] hover:bg-[#F2ECE4] cursor-pointer">-</button>
+                  <span class="text-xs font-semibold text-[#221F1C] min-w-[54px] text-center tabular-nums">${state.defaultServings} ${state.defaultServings === 1 ? 'Person' : 'People'}</span>
+                  <button id="btn-default-servings-inc" class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-[#221F1C] hover:bg-[#F2ECE4] cursor-pointer">+</button>
+                </div>
+              </div>
               <div class="flex items-center gap-1.5">
                 ${[1, 2, 4, 6, 8]
                   .map(
                     (s) => `
                   <button class="btn-serving-opt flex-1 py-2 rounded-full text-xs cursor-pointer transition ${
-                    state.recipeDetailServings === s
+                    state.defaultServings === s
                       ? 'sidebar-nav-active text-[#221F1C] font-semibold'
                       : 'bg-white/55 text-[#6B6560] hover:text-[#221F1C] hover:bg-white/80 font-medium border border-white/80'
                   }" data-servings="${s}">
@@ -110,8 +119,14 @@ export class SettingsPage {
             </div>
           </div>
 
-          <div class="text-[11px] text-[#6B6560] pt-3">
-            Changing this will automatically adapt default ingredient measurements across all recipes.
+          <div class="pt-4 flex flex-col gap-2">
+            <button id="btn-apply-servings-week"
+                    class="w-full py-2.5 px-4 rounded-full glass-pill text-[#221F1C] hover:bg-white/80 text-xs font-medium transition cursor-pointer">
+              Apply ${state.defaultServings} servings to all meals this week
+            </button>
+            <p class="text-[11px] text-[#6B6560]">
+              Saved automatically for newly planned slots and recipes. Adjust individual meals anytime in the recipe panel.
+            </p>
           </div>
         </div>
 
@@ -133,15 +148,22 @@ export class SettingsPage {
                 <span class="text-[#6B6560]">Base Currency</span>
                 <span class="font-medium text-[#221F1C]">South African Rand (ZAR - R)</span>
               </div>
+              <div class="flex items-center justify-between py-1 border-b border-[#25221F]/6">
+                <span class="text-[#6B6560]">This Week's Estimate</span>
+                <span class="font-medium text-[#221F1C] tabular-nums">${formatZAR(state.currentPlan?.estimatedBudgetZAR ?? 0)} / week</span>
+              </div>
               <div class="flex items-center justify-between py-1">
-                <span class="text-[#6B6560]">Estimated Budget</span>
-                <span class="font-medium text-[#221F1C] tabular-nums">R1,250.00 / week</span>
+                <span class="text-[#6B6560]">Reference Baseline</span>
+                <span class="font-medium text-[#221F1C] tabular-nums">${ingredientCatalogService.getLoadedCatalog().length} catalog ingredients</span>
               </div>
             </div>
           </div>
 
-          <div class="text-[11px] text-[#6B6560] pt-3">
-            Meal costing architecture calculates real-time ingredient and recipe breakdowns.
+          <div class="pt-4 flex flex-col gap-2">
+            <button id="btn-settings-price-catalog" 
+                    class="w-full py-2.5 px-4 rounded-full glass-pill text-[#221F1C] hover:bg-white/80 text-xs font-medium transition cursor-pointer">
+              Manage Reference Price Catalog
+            </button>
           </div>
         </div>
 
@@ -182,22 +204,61 @@ export class SettingsPage {
       appState.installPwa();
     });
 
+    const updateDefaultServings = async (servings: number) => {
+      const clean = Math.max(1, Math.min(20, Math.round(servings)));
+      await appState.setDefaultServings(clean, false);
+      this.render();
+      appState.showToast(
+        `Default household size set to ${clean} ${clean === 1 ? 'person' : 'people'}`,
+        'success'
+      );
+    };
+
     const servingButtons = this.container.querySelectorAll<HTMLButtonElement>('.btn-serving-opt');
     servingButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const servings = parseInt(btn.getAttribute('data-servings') || '4', 10);
-        appState.setRecipeDetailServings(servings);
-        this.render();
+        await updateDefaultServings(servings);
       });
+    });
+
+    this.container.querySelector('#btn-default-servings-dec')?.addEventListener('click', async () => {
+      const current = appState.getState().defaultServings;
+      if (current > 1) {
+        await updateDefaultServings(current - 1);
+      }
+    });
+
+    this.container.querySelector('#btn-default-servings-inc')?.addEventListener('click', async () => {
+      const current = appState.getState().defaultServings;
+      if (current < 20) {
+        await updateDefaultServings(current + 1);
+      }
+    });
+
+    this.container.querySelector('#btn-apply-servings-week')?.addEventListener('click', async () => {
+      const current = appState.getState().defaultServings;
+      await appState.setDefaultServings(current, true);
+      this.render();
+      appState.showToast(
+        `Updated all planned meals this week to ${current} ${current === 1 ? 'serving' : 'servings'}`,
+        'success'
+      );
+    });
+
+    const catalogBtn = this.container.querySelector('#btn-settings-price-catalog');
+    catalogBtn?.addEventListener('click', () => {
+      appState.openModal('price-catalog');
     });
 
     const resetBtn = this.container.querySelector('#btn-reset-sample-data');
     resetBtn?.addEventListener('click', async () => {
-      if (confirm('Reset all recipes and weekly timetable to the initial reference state?')) {
+      if (confirm('Reset all recipes, reference catalog prices, and weekly timetable to the initial reference state?')) {
+        await ingredientCatalogService.resetToDefaults();
         await recipeService.resetToDefaults();
         await mealPlanService.resetWeek(0);
         await appState.init();
-        appState.showToast('Reset complete! Sample meals restored.', 'success');
+        appState.showToast('Reset complete! Sample meals & catalog restored.', 'success');
         appState.setPage('weekly');
       }
     });

@@ -3,8 +3,10 @@ import { WeeklyPlan } from '../models/WeeklyPlan';
 import { recipeService } from './recipeService';
 import { storageService, STORES } from './storageService';
 import { inventoryService } from './inventoryService';
+import { ingredientCatalogService } from './ingredientCatalogService';
 import { formatQuantityWithUnit } from '../utils/ingredientScaling';
-import { convertQuantity, formatSmartQuantity } from '../utils/unitConversion';
+import { convertQuantity } from '../utils/unitConversion';
+import { calculateIngredientCost, resolveIngredientPrice } from '../utils/pricingUtils';
 
 export interface ShoppingItem extends Ingredient {
   displayQuantity: string;
@@ -14,6 +16,10 @@ export interface ShoppingItem extends Ingredient {
   quantityToBuy: number;
   isSufficientInStock: boolean;
   addedToInventory?: boolean;
+  resolvedPrice?: number;
+  resolvedPriceUnit?: string;
+  priceSource?: 'pantry' | 'catalog' | 'none';
+  estimatedCostZAR?: number;
 }
 
 interface StoredShoppingState {
@@ -24,9 +30,11 @@ interface StoredShoppingState {
 
 class IngredientService {
   async getShoppingListForWeek(plan: WeeklyPlan): Promise<ShoppingItem[]> {
-    await inventoryService.init();
+    await Promise.all([inventoryService.init(), ingredientCatalogService.init()]);
     const allRecipes = await recipeService.getAllRecipes();
     const recipeMap = new Map(allRecipes.map((r) => [r.id, r]));
+    const inventoryList = inventoryService.getLoadedIngredients();
+    const catalogList = ingredientCatalogService.getLoadedCatalog();
 
     // Fetch existing purchased items state from storage
     const storedState = (await storageService.get<StoredShoppingState>(
@@ -68,12 +76,17 @@ class IngredientService {
               existing.sourceMeals.push(mealLabel);
             }
           } else {
+            const catMatch = ingredientCatalogService.findCatalogItem(ing.name);
+            const resolvedCategory =
+              ing.category && ing.category !== 'Pantry'
+                ? ing.category
+                : catMatch?.category || ing.category || 'Pantry';
             const itemKey = `shop-${plan.id}-${normKey.replace(/[^a-z0-9]/g, '_')}`;
             itemMap.set(normKey, {
               id: itemKey,
               name: ing.name,
               unit: ing.unit,
-              category: ing.category || 'Pantry',
+              category: resolvedCategory,
               quantityRequired: scaledQty,
               sourceMeals: [`${day.dayName} ${meal.mealType === 'breakfast' ? 'Breakfast' : 'Dinner'}`],
             });
@@ -105,6 +118,18 @@ class IngredientService {
         ? `In Pantry (${formatQuantityWithUnit(inStockInRecipeUnit, raw.unit)})`
         : formatQuantityWithUnit(qtyToBuy, raw.unit);
 
+      const resolved = resolveIngredientPrice(raw.name, inventoryList, catalogList);
+      const estimatedCost = !isSufficient
+        ? calculateIngredientCost(
+            qtyToBuy,
+            raw.unit,
+            resolved.price,
+            resolved.priceUnit,
+            resolved.avgGramsPerUnit,
+            resolved.avgMlPerUnit
+          )
+        : 0;
+
       items.push({
         id: raw.id,
         name: raw.name,
@@ -119,6 +144,10 @@ class IngredientService {
         addedToInventory: isAdded,
         displayQuantity: displayQty,
         sourceMeals: raw.sourceMeals,
+        resolvedPrice: resolved.price,
+        resolvedPriceUnit: resolved.priceUnit,
+        priceSource: resolved.source,
+        estimatedCostZAR: Math.round(estimatedCost * 100) / 100,
       });
     }
 

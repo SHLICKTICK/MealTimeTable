@@ -206,128 +206,325 @@ export function getIconSvg(name: string, className: string = 'w-5 h-5'): string 
   }
 }
 
+export type FoodGroup =
+  | 'fruit'
+  | 'vegetables'
+  | 'dairy'
+  | 'fats-and-oils'
+  | 'carbohydrates'
+  | 'proteins';
+
+const FOOD_GROUP_LABELS: Record<FoodGroup, string> = {
+  fruit: 'Fruit',
+  vegetables: 'Vegetables',
+  dairy: 'Dairy',
+  'fats-and-oils': 'Fats & Oils',
+  carbohydrates: 'Carbohydrates',
+  proteins: 'Proteins',
+};
+
 /**
- * Miniature culinary food icons for ingredient rows matching the reference detail panel.
+ * Classifies an ingredient into one of the six food-pyramid groups.
  */
-export function getIngredientMiniIconSvg(name: string, category?: string): string {
+export function classifyIngredientFoodGroup(name: string, category?: string): FoodGroup {
   const lower = name.toLowerCase();
 
-  // Chicken / Poultry / Meat
-  if (lower.includes('chicken') || lower.includes('turkey') || lower.includes('poultry')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <ellipse cx="12.5" cy="12" rx="7.5" ry="5.2" transform="rotate(-14 12.5 12)" fill="#D98B48"/>
-      <ellipse cx="12" cy="11.4" rx="6.5" ry="4.2" transform="rotate(-14 12 11.4)" fill="#EAA45E"/>
-      <path d="M8.5 10.2c1.8-.8 4.2-.8 6.2 0" stroke="#A65D22" stroke-width="1.2" stroke-linecap="round"/>
-      <path d="M9.5 13c1.6-.6 3.5-.6 5 0" stroke="#A65D22" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>`;
+  // Dairy-milk exceptions before checking "butter"
+  if (lower.includes('buttermilk')) {
+    return 'dairy';
   }
 
-  if (lower.includes('beef') || lower.includes('steak') || lower.includes('meat') || lower.includes('lamb') || lower.includes('pork') || lower.includes('bacon')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <path d="M5 13.5c0-3.8 3.6-6.5 8-6.5 3.6 0 6 2 6 4.8 0 3.2-3.2 5.7-7.8 5.7-3.8 0-6.2-1.6-6.2-4Z" fill="#B84B3E"/>
-      <ellipse cx="10.5" cy="11.5" rx="2.2" ry="1.3" fill="#F2D7D0"/>
-    </svg>`;
-  }
-
-  // Rice / Oats / Grains
-  if (lower.includes('rice') || lower.includes('oat') || lower.includes('quinoa') || lower.includes('grain') || lower.includes('pap') || lower.includes('maize')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <path d="M6.5 12.5c0-3.2 2.5-5.2 5.5-5.2s5.5 2 5.5 5.2H6.5Z" fill="#FAF7F2"/>
-      <path d="M4.5 12.5h15c-.4 3.8-3.4 6.2-7.5 6.2s-7.1-2.4-7.5-6.2Z" fill="#E6E1DA" stroke="#C9C2B8" stroke-width="1"/>
-      <circle cx="10" cy="10.3" r="0.8" fill="#DFD8CE"/>
-      <circle cx="13.5" cy="10.6" r="0.8" fill="#DFD8CE"/>
-    </svg>`;
-  }
-
-  // Carrots
-  if (lower.includes('carrot')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <path d="M16.5 6.5c1-1.4 2.3-2 3.2-1.8M16 7c1.6-.4 2.8.2 3.2 1" stroke="#5B9A3D" stroke-width="1.5" stroke-linecap="round"/>
-      <path d="M16.8 7.2c1.2 1.2.8 3.2-.8 4.8l-7.2 6.8c-1 1-2.4.8-3-.1-.7-.8-.5-2.1.6-3l6.8-7.4c1.3-1.4 2.6-2.1 3.6-1.1Z" fill="#EE7B28"/>
-      <path d="M12.2 11.5l1.5 1.2M9.8 14l1.3 1" stroke="#C85B12" stroke-width="1.1" stroke-linecap="round"/>
-    </svg>`;
-  }
-
-  // Onion / Garlic
-  if (lower.includes('onion') || lower.includes('garlic') || lower.includes('shallot')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <path d="M12 4.5c.6 1.5 1.2 2.2 2 2.7 1.8 1.1 3 2.9 3 5.2 0 3.2-2.2 5.6-5 5.6s-5-2.4-5-5.6c0-2.3 1.2-4.1 3-5.2.8-.5 1.4-1.2 2-2.7Z" fill="#D89A4E"/>
-      <path d="M12 5.2c-.9 2-1.4 4.4-1.4 7.2 0 2.5.5 4.4 1.4 5.4M12 5.2c.9 2 1.4 4.4 1.4 7.2 0 2.5-.5 4.4-1.4 5.4" stroke="#B6762C" stroke-width="1" stroke-linecap="round"/>
-    </svg>`;
-  }
-
-  // Cooking Oil / Liquid Bottle
-  if (lower.includes('oil') || lower.includes('vinegar') || lower.includes('syrup') || lower.includes('honey') || lower.includes('sauce')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <rect x="10.2" y="3.5" width="3.6" height="2.4" rx="0.8" fill="#8C6239"/>
-      <path d="M10.5 6h3l1.8 3.2c.5.9.7 1.8.7 2.8v6.2c0 1.2-1 2.2-2.2 2.2h-3.6c-1.2 0-2.2-1-2.2-2.2V12c0-1 .2-1.9.7-2.8L10.5 6Z" fill="#E9B83B"/>
-      <rect x="9.5" y="12.5" width="5" height="4" rx="0.8" fill="#FFF8E6" opacity="0.85"/>
-    </svg>`;
-  }
-
-  // Salt / Pepper / Spices
-  if (lower.includes('salt') || lower.includes('pepper') || lower.includes('spice') || lower.includes('seasoning') || lower.includes('sugar') || lower.includes('flour')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <path d="M9.5 6.5c0-1.1 1.1-2 2.5-2s2.5.9 2.5 2H9.5Z" fill="#B8B2AA"/>
-      <path d="M8.8 7h6.4l.8 10.5c.1 1.1-.8 2-1.9 2H9.9c-1.1 0-2-.9-1.9-2L8.8 7Z" fill="#F4F1EC" stroke="#CBC5BC" stroke-width="1"/>
-      <rect x="9.3" y="12" width="5.4" height="5.5" rx="0.8" fill="#FFFFFF"/>
-    </svg>`;
-  }
-
-  // Eggs
-  if (lower.includes('egg')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <path d="M12 4.5c3.2 0 5.5 4.2 5.5 8.2 0 3.6-2.4 6.3-5.5 6.3s-5.5-2.7-5.5-6.3c0-4 2.3-8.2 5.5-8.2Z" fill="#F7E5CE" stroke="#DFC4A2" stroke-width="1"/>
-    </svg>`;
-  }
-
-  // Dairy: Milk, Yogurt, Cream, Cheese, Butter
-  if (lower.includes('milk') || lower.includes('yogurt') || lower.includes('cream') || lower.includes('cheese') || lower.includes('butter') || lower.includes('feta')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <rect x="6" y="8" width="12" height="10" rx="2.5" fill="#FFFDF9" stroke="#DFD5C7" stroke-width="1"/>
-      <path d="M7 10.5h10v5a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-5Z" fill="#F4E6C8"/>
-    </svg>`;
-  }
-
-  // Berries / Fruit / Tomato
-  if (lower.includes('berr') || lower.includes('tomato') || lower.includes('apple') || lower.includes('fruit') || lower.includes('lemon')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <circle cx="10.5" cy="13.5" r="4.2" fill="#D64550"/>
-      <circle cx="14.8" cy="12" r="3.4" fill="#4B66A6"/>
-      <path d="M12 7.5c.8-1 2-1.4 3-1.2" stroke="#5A963C" stroke-width="1.4" stroke-linecap="round"/>
-    </svg>`;
-  }
-
-  // Leafy Greens / Herbs / Spinach / Cucumber / Broccoli
+  // Nut/seed butters belong to Proteins rather than Fats & Oils
   if (
-    lower.includes('spinach') ||
+    lower.includes('peanut butter') ||
+    lower.includes('almond butter') ||
+    lower.includes('cashew butter') ||
+    lower.includes('tahini')
+  ) {
+    return 'proteins';
+  }
+
+  // 1. Fats & Oils
+  if (
+    lower.includes('oil') ||
+    lower.includes('butter') ||
+    lower.includes('margarine') ||
+    lower.includes('ghee') ||
+    lower.includes('lard') ||
+    lower.includes('mayo') ||
+    lower.includes('mayonnaise') ||
+    lower.includes('shortening') ||
+    lower.includes('avocado') ||
+    lower.includes('cream cheese')
+  ) {
+    return 'fats-and-oils';
+  }
+
+  // 2. Dairy
+  if (
+    lower.includes('milk') ||
+    lower.includes('yogurt') ||
+    lower.includes('yoghurt') ||
+    lower.includes('cheese') ||
+    lower.includes('cheddar') ||
+    lower.includes('parmesan') ||
+    lower.includes('mozzarella') ||
+    lower.includes('feta') ||
+    lower.includes('ricotta') ||
+    lower.includes('cream') ||
+    lower.includes('kefir') ||
+    lower.includes('whey')
+  ) {
+    return 'dairy';
+  }
+
+  // 3. Proteins (meat, poultry, fish, eggs, legumes, nuts, seeds, meat stocks)
+  if (
+    lower.includes('chicken') ||
+    lower.includes('beef') ||
+    lower.includes('steak') ||
+    lower.includes('pork') ||
+    lower.includes('lamb') ||
+    lower.includes('mutton') ||
+    lower.includes('turkey') ||
+    lower.includes('duck') ||
+    lower.includes('bacon') ||
+    lower.includes('ham') ||
+    lower.includes('sausage') ||
+    lower.includes('mince') ||
+    lower.includes('meat') ||
+    lower.includes('poultry') ||
+    lower.includes('fish') ||
+    lower.includes('salmon') ||
+    lower.includes('tuna') ||
+    lower.includes('cod') ||
+    lower.includes('hake') ||
+    lower.includes('trout') ||
+    lower.includes('shrimp') ||
+    lower.includes('prawn') ||
+    lower.includes('seafood') ||
+    lower.includes('egg') ||
+    lower.includes('tofu') ||
+    lower.includes('tempeh') ||
+    lower.includes('lentil') ||
+    lower.includes('chickpea') ||
+    (lower.includes('bean') && !lower.includes('green bean')) ||
+    lower.includes('walnut') ||
+    lower.includes('almond') ||
+    lower.includes('peanut') ||
+    lower.includes('cashew') ||
+    lower.includes('pecan') ||
+    lower.includes('chia') ||
+    lower.includes('flax') ||
+    lower.includes('seed') ||
+    lower.includes('protein') ||
+    lower.includes('stock') ||
+    lower.includes('broth')
+  ) {
+    return 'proteins';
+  }
+
+  // 4. Carbohydrates (check baked goods, grains, and starchy staples before fruit flavors like "blueberry muffin")
+  if (
+    lower.includes('rice') ||
+    lower.includes('oat') ||
+    lower.includes('wheat') ||
+    lower.includes('flour') ||
+    lower.includes('pasta') ||
+    lower.includes('penne') ||
+    lower.includes('spaghetti') ||
+    lower.includes('macaroni') ||
+    lower.includes('noodle') ||
+    lower.includes('bread') ||
+    lower.includes('brioche') ||
+    lower.includes('bun') ||
+    lower.includes('muffin') ||
+    lower.includes('toast') ||
+    lower.includes('bagel') ||
+    lower.includes('croissant') ||
+    lower.includes('tortilla') ||
+    lower.includes('wrap') ||
+    lower.includes('pita') ||
+    lower.includes('couscous') ||
+    lower.includes('quinoa') ||
+    lower.includes('barley') ||
+    lower.includes('pap') ||
+    lower.includes('maize') ||
+    lower.includes('cornmeal') ||
+    lower.includes('cereal') ||
+    lower.includes('granola') ||
+    lower.includes('cracker') ||
+    lower.includes('potato') ||
+    lower.includes('yam') ||
+    lower.includes('sugar') ||
+    lower.includes('honey') ||
+    lower.includes('syrup') ||
+    lower.includes('maple') ||
+    lower.includes('baking powder') ||
+    lower.includes('yeast')
+  ) {
+    return 'carbohydrates';
+  }
+
+  // 5. Fruit
+  if (
+    lower.includes('berr') ||
+    lower.includes('apple') ||
+    lower.includes('banana') ||
+    lower.includes('orange') ||
+    lower.includes('lemon') ||
+    lower.includes('lime') ||
+    lower.includes('citrus') ||
+    lower.includes('melon') ||
+    lower.includes('grape') ||
+    lower.includes('peach') ||
+    lower.includes('pear') ||
+    lower.includes('plum') ||
+    lower.includes('mango') ||
+    lower.includes('pineapple') ||
+    lower.includes('kiwi') ||
+    lower.includes('fig') ||
+    lower.includes('date') ||
+    lower.includes('raisin') ||
+    lower.includes('cherr') ||
+    lower.includes('apricot') ||
+    lower.includes('compote') ||
+    lower.includes('fruit') ||
+    lower.includes('juice')
+  ) {
+    return 'fruit';
+  }
+
+  // 6. Vegetables (greens, root veg, culinary herbs & plant seasonings)
+  if (
+    lower.includes('carrot') ||
+    lower.includes('onion') ||
+    lower.includes('garlic') ||
+    lower.includes('shallot') ||
+    lower.includes('leek') ||
+    lower.includes('tomato') ||
+    lower.includes('asparagus') ||
+    lower.includes('zucchini') ||
+    lower.includes('courgette') ||
+    lower.includes('cucumber') ||
     lower.includes('lettuce') ||
-    lower.includes('green') ||
-    lower.includes('herb') ||
+    lower.includes('spinach') ||
+    lower.includes('kale') ||
+    lower.includes('arugula') ||
+    lower.includes('rocket') ||
+    lower.includes('cabbage') ||
+    lower.includes('broccoli') ||
+    lower.includes('cauliflower') ||
+    lower.includes('pepper') ||
+    lower.includes('chilli') ||
+    lower.includes('chili') ||
+    lower.includes('celery') ||
+    lower.includes('mushroom') ||
+    lower.includes('pea') ||
+    lower.includes('green bean') ||
+    lower.includes('eggplant') ||
+    lower.includes('aubergine') ||
+    lower.includes('beet') ||
+    lower.includes('radish') ||
+    lower.includes('squash') ||
+    lower.includes('pumpkin') ||
+    lower.includes('relish') ||
+    lower.includes('chive') ||
+    lower.includes('rosemary') ||
+    lower.includes('thyme') ||
     lower.includes('basil') ||
     lower.includes('parsley') ||
-    lower.includes('chive') ||
-    lower.includes('cucumber') ||
-    lower.includes('broccoli') ||
-    category === 'Produce'
+    lower.includes('cilantro') ||
+    lower.includes('coriander') ||
+    lower.includes('mint') ||
+    lower.includes('oregano') ||
+    lower.includes('herb') ||
+    lower.includes('salt') ||
+    lower.includes('spice') ||
+    lower.includes('seasoning')
   ) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <path d="M18.5 5.5C12.2 5.5 7 8.8 5.8 14.5c-.3 1.7.4 3 1.7 3.6 1.5.7 3.7.4 5.7-.7 4-2.3 5.6-7.1 5.3-11.9Z" fill="#63A342"/>
-      <path d="M6 18.5c2.8-3 6.5-6 10.6-8.8" stroke="#DDF0D2" stroke-width="1.3" stroke-linecap="round"/>
-    </svg>`;
+    return 'vegetables';
   }
 
-  // Pasta / Bread / Bakery
-  if (lower.includes('pasta') || lower.includes('spaghetti') || lower.includes('bread') || lower.includes('bun') || lower.includes('muffin') || lower.includes('toast')) {
-    return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-      <rect x="5.5" y="8.5" width="13" height="8.5" rx="3" fill="#E3B169"/>
-      <path d="M7.5 11.5h9M7.5 14h6.5" stroke="#B67E32" stroke-width="1.2" stroke-linecap="round"/>
-    </svg>`;
-  }
+  // Category fallbacks
+  if (category === 'Meat & Poultry') return 'proteins';
+  if (category === 'Dairy & Eggs') return 'dairy';
+  if (category === 'Bakery' || category === 'Pantry') return 'carbohydrates';
+  if (category === 'Produce' || category === 'Spices & Condiments') return 'vegetables';
 
-  // Default warm culinary ingredient icon
-  return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none">
-    <circle cx="12" cy="12" r="6.5" fill="#EFE4D4" stroke="#D7C3A8" stroke-width="1"/>
-    <circle cx="12" cy="12" r="3" fill="#D9A441"/>
-  </svg>`;
+  return 'carbohydrates';
+}
+
+/**
+ * Food-pyramid food-group icons (Fruit, Vegetables, Dairy, Fats & Oils, Carbohydrates, Proteins)
+ * for ingredient rows across RecipePanel, IngredientsPage, and ShoppingListPage.
+ */
+export function getIngredientMiniIconSvg(name: string, category?: string): string {
+  const group = classifyIngredientFoodGroup(name, category);
+  const label = FOOD_GROUP_LABELS[group];
+
+  switch (group) {
+    case 'fruit':
+      // Ruby apple icon representing Fruit
+      return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" role="img" aria-label="${label}">
+        <title>${label}</title>
+        <path d="M12 7.5c.3-1.4 1.1-2.5 2.4-3" stroke="#7A5230" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M12.2 6.8c1.4-1.3 3.2-1.5 4.3-.6-.6 1.6-2.3 2.1-4.3.6Z" fill="#5E9C42"/>
+        <path d="M12 8.2c-1.8-1-4.8-.6-5.7 2.1-1 3.1.8 8.3 3.6 9 .9.2 1.5-.3 2.1-.3s1.2.5 2.1.3c2.8-.7 4.6-5.9 3.6-9-.9-2.7-3.9-3.1-5.7-2.1Z" fill="#DD4E52"/>
+        <path d="M8.7 10.6c-.4.9-.5 2-.2 3.1" stroke="#F8B0B2" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>`;
+
+    case 'vegetables':
+      // Fresh leafy garden broccoli/greens icon representing Vegetables
+      return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" role="img" aria-label="${label}">
+        <title>${label}</title>
+        <path d="M10.4 13.8h3.2l-.5 5.4a1.1 1.1 0 0 1-2.2 0l-.5-5.4Z" fill="#8CC46A"/>
+        <circle cx="8.4" cy="10.8" r="3.3" fill="#52963E"/>
+        <circle cx="15.6" cy="10.8" r="3.3" fill="#52963E"/>
+        <circle cx="12" cy="8.2" r="3.8" fill="#63AA4B"/>
+        <path d="M10.6 7.5c.7-.6 1.8-.7 2.6-.3" stroke="#BCE4AA" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>`;
+
+    case 'dairy':
+      // Milk carton & cheese wedge representing Dairy
+      return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" role="img" aria-label="${label}">
+        <title>${label}</title>
+        <path d="M6.5 9.2 8.2 5.5h5.2l1.7 3.7v9.3a1 1 0 0 1-1 1H7.5a1 1 0 0 1-1-1V9.2Z" fill="#FAF6EE" stroke="#CFC4B4" stroke-width="1"/>
+        <rect x="7" y="11" width="7.6" height="4" fill="#CBE0EE"/>
+        <path d="M12.2 19.2h7.6v-4.1c0-.4-.3-.8-.7-.9l-4.2-1.4-2.7 3.2v3.2Z" fill="#F2C65A" stroke="#D39D2E" stroke-width="0.9" stroke-linejoin="round"/>
+        <circle cx="15.4" cy="16.9" r="0.8" fill="#D39D2E"/>
+        <circle cx="17.8" cy="17.6" r="0.6" fill="#D39D2E"/>
+      </svg>`;
+
+    case 'fats-and-oils':
+      // Golden amber oil droplet representing Fats & Oils
+      return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" role="img" aria-label="${label}">
+        <title>${label}</title>
+        <path d="M12 3.8C9.8 7.2 6.5 11.2 6.5 14.5a5.5 5.5 0 0 0 11 0c0-3.3-3.3-7.3-5.5-10.7Z" fill="#E8A628" stroke="#C58214" stroke-width="1"/>
+        <path d="M9.6 13.2a2.6 2.6 0 0 0 2.1 3.7" stroke="#FFF3C4" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>`;
+
+    case 'carbohydrates':
+      // Golden wheat grain stalk representing Carbohydrates
+      return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" role="img" aria-label="${label}">
+        <title>${label}</title>
+        <path d="M6.5 19.5 16.8 6.8" stroke="#B67E32" stroke-width="1.4" stroke-linecap="round"/>
+        <ellipse cx="15.8" cy="6.6" rx="1.6" ry="2.6" transform="rotate(38 15.8 6.6)" fill="#E6B25E"/>
+        <ellipse cx="12.6" cy="8.2" rx="1.5" ry="2.5" transform="rotate(-12 12.6 8.2)" fill="#DBA048"/>
+        <ellipse cx="15.6" cy="10.8" rx="1.5" ry="2.5" transform="rotate(75 15.6 10.8)" fill="#E6B25E"/>
+        <ellipse cx="10.2" cy="11.2" rx="1.5" ry="2.5" transform="rotate(-12 10.2 11.2)" fill="#DBA048"/>
+        <ellipse cx="13.2" cy="13.8" rx="1.5" ry="2.5" transform="rotate(75 13.2 13.8)" fill="#E6B25E"/>
+        <ellipse cx="8" cy="14.2" rx="1.4" ry="2.3" transform="rotate(-12 8 14.2)" fill="#DBA048"/>
+        <ellipse cx="10.8" cy="16.6" rx="1.4" ry="2.3" transform="rotate(75 10.8 16.6)" fill="#E6B25E"/>
+      </svg>`;
+
+    case 'proteins':
+      // Savory protein cut icon representing Proteins
+      return `<svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" role="img" aria-label="${label}">
+        <title>${label}</title>
+        <path d="M5.2 13.8c0-3.7 3.3-6.6 7.5-6.6 3.5 0 6.1 2 6.1 4.9 0 3.2-3.1 5.7-7.6 5.7-3.7 0-6-1.6-6-4Z" fill="#C95B44" stroke="#A1402D" stroke-width="0.9"/>
+        <ellipse cx="10.2" cy="11.8" rx="2.1" ry="1.3" transform="rotate(-15 10.2 11.8)" fill="#F7DFD8"/>
+        <path d="M13.6 12.6c1-.4 2.1-.3 2.9.2" stroke="#F0B7AA" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>`;
+  }
 }

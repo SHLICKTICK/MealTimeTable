@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'MealWeekDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORES = {
   RECIPES: 'recipes',
   WEEKLY_PLANS: 'weekly_plans',
@@ -13,6 +13,7 @@ const STORES = {
   INVENTORY: 'inventory',
   COMPLETIONS: 'meal_completions',
   TRANSACTIONS: 'inventory_transactions',
+  INGREDIENT_CATALOG: 'ingredient_catalog',
 };
 
 class StorageService {
@@ -32,6 +33,18 @@ class StorageService {
     }
 
     this.dbPromise = new Promise((resolve) => {
+      let settled = false;
+      const finish = (db: IDBDatabase | null) => {
+        if (settled) return;
+        settled = true;
+        resolve(db);
+      };
+
+      const timeoutId = setTimeout(() => {
+        console.warn('IndexedDB open timed out, falling back to localStorage');
+        finish(null);
+      }, 1500);
+
       try {
         const request = window.indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -58,19 +71,36 @@ class StorageService {
           if (!db.objectStoreNames.contains(STORES.TRANSACTIONS)) {
             db.createObjectStore(STORES.TRANSACTIONS, { keyPath: 'id' });
           }
+          if (!db.objectStoreNames.contains(STORES.INGREDIENT_CATALOG)) {
+            db.createObjectStore(STORES.INGREDIENT_CATALOG, { keyPath: 'id' });
+          }
         };
 
         request.onsuccess = () => {
-          resolve(request.result);
+          clearTimeout(timeoutId);
+          const db = request.result;
+          db.onversionchange = () => {
+            db.close();
+            this.dbPromise = null;
+          };
+          finish(db);
+        };
+
+        request.onblocked = () => {
+          clearTimeout(timeoutId);
+          console.warn('IndexedDB upgrade blocked by another connection, falling back to localStorage');
+          finish(null);
         };
 
         request.onerror = (e) => {
+          clearTimeout(timeoutId);
           console.warn('IndexedDB open error, using localStorage fallback', e);
-          resolve(null);
+          finish(null);
         };
       } catch (err) {
+        clearTimeout(timeoutId);
         console.warn('IndexedDB exception, using localStorage fallback', err);
-        resolve(null);
+        finish(null);
       }
     });
 
@@ -80,12 +110,12 @@ class StorageService {
   async get<T>(storeName: string, key: string): Promise<T | null> {
     try {
       const db = await this.initDB();
-      if (db) {
-        return new Promise((resolve) => {
+      if (db && db.objectStoreNames.contains(storeName)) {
+        return await new Promise((resolve) => {
           const transaction = db.transaction(storeName, 'readonly');
           const store = transaction.objectStore(storeName);
           const req = store.get(key);
-          req.onsuccess = () => resolve(req.result || null);
+          req.onsuccess = () => resolve(req.result || this.getLocalFallback<T>(storeName, key));
           req.onerror = () => resolve(this.getLocalFallback<T>(storeName, key));
         });
       }
@@ -98,8 +128,8 @@ class StorageService {
   async getAll<T>(storeName: string): Promise<T[]> {
     try {
       const db = await this.initDB();
-      if (db) {
-        return new Promise((resolve) => {
+      if (db && db.objectStoreNames.contains(storeName)) {
+        return await new Promise((resolve) => {
           const transaction = db.transaction(storeName, 'readonly');
           const store = transaction.objectStore(storeName);
           const req = store.getAll();
@@ -128,13 +158,16 @@ class StorageService {
 
     try {
       const db = await this.initDB();
-      if (db) {
-        return new Promise((resolve, reject) => {
+      if (db && db.objectStoreNames.contains(storeName)) {
+        await new Promise<void>((resolve) => {
           const transaction = db.transaction(storeName, 'readwrite');
           const store = transaction.objectStore(storeName);
           const req = store.put(item);
           req.onsuccess = () => resolve();
-          req.onerror = () => reject(req.error);
+          req.onerror = () => {
+            console.warn(`IndexedDB put error for ${storeName}`, req.error);
+            resolve();
+          };
         });
       }
     } catch (err) {
@@ -152,8 +185,8 @@ class StorageService {
     this.removeLocalFallback(storeName, key);
     try {
       const db = await this.initDB();
-      if (db) {
-        return new Promise((resolve) => {
+      if (db && db.objectStoreNames.contains(storeName)) {
+        await new Promise<void>((resolve) => {
           const transaction = db.transaction(storeName, 'readwrite');
           const store = transaction.objectStore(storeName);
           const req = store.delete(key);

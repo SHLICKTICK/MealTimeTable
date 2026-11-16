@@ -1,9 +1,10 @@
 import { appState } from '../app/state';
 import { ingredientService, ShoppingItem } from '../services/ingredientService';
 import { inventoryService } from '../services/inventoryService';
+import { ingredientCatalogService } from '../services/ingredientCatalogService';
 import { getIconSvg, getIngredientMiniIconSvg } from '../utils/iconHelper';
 import { formatSmartQuantity } from '../utils/unitConversion';
-import { calculateIngredientCost, formatZAR } from '../utils/pricingUtils';
+import { calculateIngredientCost, formatZAR, resolveIngredientPrice } from '../utils/pricingUtils';
 
 export class ShoppingListPage {
   private container: HTMLElement;
@@ -35,6 +36,7 @@ export class ShoppingListPage {
     const plan = state.currentPlan;
     const weekLabel = plan ? plan.days[0].dateStr + ' – ' + plan.days[6].dateStr : 'This Week';
     const inventoryList = inventoryService.getLoadedIngredients();
+    const catalogList = ingredientCatalogService.getLoadedCatalog();
 
     const itemsToBuy = this.items.filter((i) => !i.isSufficientInStock);
     const inStockItems = this.items.filter((i) => i.isSufficientInStock);
@@ -43,17 +45,22 @@ export class ShoppingListPage {
     const purchasedCount = itemsToBuy.filter((i) => i.purchased).length;
     const progressPercent = totalToBuyCount > 0 ? Math.round((purchasedCount / totalToBuyCount) * 100) : 100;
 
-    // Calculate total estimated shopping list spend based on ingredient pricing
+    // Calculate total estimated shopping list spend using 2-tier pricing (Pantry -> Master Catalog)
     let totalEstimatedSpend = 0;
     itemsToBuy.forEach((item) => {
-      const match = inventoryList.find(
-        (inv) =>
-          inv.name.toLowerCase() === item.name.toLowerCase() ||
-          inv.name.toLowerCase().includes(item.name.toLowerCase()) ||
-          item.name.toLowerCase().includes(inv.name.toLowerCase())
-      );
-      const cost = calculateIngredientCost(item.quantityToBuy, item.unit, match?.price, match?.priceUnit);
-      totalEstimatedSpend += cost;
+      if (item.estimatedCostZAR !== undefined) {
+        totalEstimatedSpend += item.estimatedCostZAR;
+      } else {
+        const resolved = resolveIngredientPrice(item.name, inventoryList, catalogList);
+        totalEstimatedSpend += calculateIngredientCost(
+          item.quantityToBuy,
+          item.unit,
+          resolved.price,
+          resolved.priceUnit,
+          resolved.avgGramsPerUnit,
+          resolved.avgMlPerUnit
+        );
+      }
     });
 
     // Group items by category
@@ -148,14 +155,26 @@ export class ShoppingListPage {
                 ${catItems
                   .map((item) => {
                     const isSufficient = item.isSufficientInStock;
-
-                    const match = inventoryList.find(
-                      (inv) =>
-                        inv.name.toLowerCase() === item.name.toLowerCase() ||
-                        inv.name.toLowerCase().includes(item.name.toLowerCase()) ||
-                        item.name.toLowerCase().includes(inv.name.toLowerCase())
-                    );
-                    const itemCost = !isSufficient ? calculateIngredientCost(item.quantityToBuy, item.unit, match?.price, match?.priceUnit) : 0;
+                    const resolved =
+                      item.estimatedCostZAR !== undefined
+                        ? { source: item.priceSource || 'none', cost: item.estimatedCostZAR }
+                        : (() => {
+                            const r = resolveIngredientPrice(item.name, inventoryList, catalogList);
+                            return {
+                              source: r.source,
+                              cost: !isSufficient
+                                ? calculateIngredientCost(
+                                    item.quantityToBuy,
+                                    item.unit,
+                                    r.price,
+                                    r.priceUnit,
+                                    r.avgGramsPerUnit,
+                                    r.avgMlPerUnit
+                                  )
+                                : 0,
+                            };
+                          })();
+                    const itemCost = resolved.cost;
 
                     return `
                   <div class="flex items-center justify-between py-2.5 text-xs hover:bg-white/45 px-2 rounded-xl transition group">
@@ -210,7 +229,11 @@ export class ShoppingListPage {
                           itemCost > 0
                             ? `
                           <span class="text-[10.5px] text-[#8C5C26] font-medium tabular-nums">
-                            ~${formatZAR(itemCost)}
+                            ~${formatZAR(itemCost)}${
+                                resolved.source === 'catalog'
+                                  ? ` <span class="text-[9.5px] text-[#77716D]/80 font-normal" title="Estimated using Master Ingredient Catalog reference price">(ref)</span>`
+                                  : ''
+                              }
                           </span>
                         `
                             : ''
