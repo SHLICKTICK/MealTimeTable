@@ -210,7 +210,7 @@ export class RecipePanel {
                 class="flex-1 py-3 px-5 rounded-full text-white text-[13px] font-medium flex items-center justify-center gap-2 hover:opacity-95 transition shadow-[0_8px_20px_-4px_rgba(25,22,19,0.35)] cursor-pointer"
                 style="background: linear-gradient(180deg, #2D2A27 0%, #191715 100%);">
           ${getIconSvg('edit', 'w-3.5 h-3.5')}
-          Edit Meal
+          ${isPlanContext && plannedMeal ? 'Edit Meal' : 'Edit Recipe'}
         </button>
 
         ${
@@ -241,16 +241,16 @@ export class RecipePanel {
 
     const decBtn = this.container.querySelector('#btn-servings-dec');
     decBtn?.addEventListener('click', () => {
-      const cur = state.recipeDetailServings || 4;
-      if (cur > 1) {
-        appState.setRecipeDetailServings(cur - 1);
+      if (currentServings > 1) {
+        appState.setRecipeDetailServings(currentServings - 1);
       }
     });
 
     const incBtn = this.container.querySelector('#btn-servings-inc');
     incBtn?.addEventListener('click', () => {
-      const cur = state.recipeDetailServings || 4;
-      appState.setRecipeDetailServings(cur + 1);
+      if (currentServings < 20) {
+        appState.setRecipeDetailServings(currentServings + 1);
+      }
     });
 
     // Mark as cooked button
@@ -304,7 +304,11 @@ export class RecipePanel {
 
     const editBtn = this.container.querySelector('#btn-edit-meal');
     editBtn?.addEventListener('click', () => {
-      appState.openModal('edit-recipe', { recipe });
+      if (state.selectedSource === 'plan' && plannedMeal) {
+        appState.openModal('assign-meal', { dayIndex, mealType });
+      } else {
+        appState.openModal('edit-recipe', { recipe });
+      }
     });
 
     const removeBtn = this.container.querySelector('#btn-remove-meal');

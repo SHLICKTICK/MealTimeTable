@@ -1,4 +1,5 @@
 import { PlannedMeal, MealCookingStatus } from '../models/PlannedMeal';
+import { Recipe } from '../models/Recipe';
 import { WeeklyPlan, DayPlan } from '../models/WeeklyPlan';
 import { getWeekDates } from '../utils/dateUtils';
 import { recipeService } from './recipeService';
@@ -258,6 +259,29 @@ class MealPlanService {
     }
 
     plan.estimatedBudgetZAR = Math.round(totalWeeklyCost * 100) / 100;
+  }
+
+  async syncRecipeAcrossPlans(updatedRecipe: Recipe): Promise<void> {
+    const storedPlans = await storageService.getAll<WeeklyPlan>(STORES.WEEKLY_PLANS);
+    for (const plan of storedPlans) {
+      let referencesRecipe = false;
+      for (const day of plan.days) {
+        for (const meal of [day.breakfast, day.dinner]) {
+          if (meal && meal.recipeId === updatedRecipe.id) {
+            meal.title = updatedRecipe.title;
+            meal.imageUrl = updatedRecipe.imageUrl;
+            referencesRecipe = true;
+          }
+        }
+      }
+      if (referencesRecipe) {
+        await this.recalculateBudget(plan);
+        await storageService.set(STORES.WEEKLY_PLANS, plan);
+        if (this.currentPlan?.id === plan.id) {
+          this.currentPlan = plan;
+        }
+      }
+    }
   }
 
   async resetWeek(weekOffset: number = 0): Promise<WeeklyPlan> {
