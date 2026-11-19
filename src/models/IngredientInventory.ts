@@ -1,3 +1,5 @@
+import { TransactionType } from './InventoryTransaction';
+
 export type StockStatus = 'In Stock' | 'Low Stock' | 'Out of Stock';
 
 export type StorageLocation = 'Pantry' | 'Fridge' | 'Freezer' | 'Spice Rack' | 'Counter';
@@ -11,6 +13,8 @@ export type IngredientCategory =
   | 'Spices & Condiments'
   | 'Other';
 
+export type IngredientActivityType = TransactionType | 'Details Updated';
+
 export interface IngredientInventory {
   id: string;
   name: string;
@@ -21,7 +25,10 @@ export interface IngredientInventory {
   category: IngredientCategory;
   createdAt: string; // ISO date
   updatedAt: string; // ISO date
-  lastUsedAt?: string; // ISO date
+  lastUsedAt?: string; // ISO date (last meal cooking usage)
+  lastActivityAt?: string; // ISO date (most recent activity of any type)
+  lastActivityType?: IngredientActivityType;
+  lastActivitySummary?: string; // Concise summary, e.g. "Used -400 g · Beef Stew"
   notes?: string;
   unitCostZAR?: number;
   price?: number; // Price in ZAR (R)

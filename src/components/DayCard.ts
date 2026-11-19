@@ -35,13 +35,15 @@ export class DayCard {
     const state = appState.getState();
     const isDayActive = state.selectedDayIndex === this.day.dayIndex;
     const isToday = this.day.fullDate === state.todayDateStr;
+    const isPast = Boolean(this.day.fullDate && state.todayDateStr && this.day.fullDate < state.todayDateStr);
     const isBreakfastActive = isDayActive && state.selectedMealType === 'breakfast';
     const isDinnerActive = isDayActive && state.selectedMealType === 'dinner';
 
     const accentClass = DAY_ACCENT_CLASSES[this.day.dayIndex % DAY_ACCENT_CLASSES.length];
     const activeCardClass = isDayActive ? 'glass-card-active' : '';
+    const temporalCardClass = isToday ? 'day-card-today' : isPast ? 'day-card-past' : '';
 
-    this.container.className = `day-card-capsule ${accentClass} ${activeCardClass} pl-4 pr-0 py-0 flex items-stretch justify-between gap-3 cursor-pointer select-none transition-all`;
+    this.container.className = `day-card-capsule ${accentClass} ${temporalCardClass} ${activeCardClass} pl-4 pr-0 py-0 flex items-stretch justify-between gap-3 cursor-pointer select-none transition-all`;
 
     const bMeal = this.day.breakfast;
     const dMeal = this.day.dinner;
@@ -68,15 +70,20 @@ export class DayCard {
            </span>`
         : '';
 
+    const dayHeadingColor = isPast ? 'text-[#6E6862]' : 'text-[#221F1C]';
+    const mealTitleColor = isPast ? 'text-[#6E6862]' : 'text-[#221F1C]';
+    const thumbFilterClass = isPast ? 'grayscale-[35%] opacity-75' : '';
+
     this.container.innerHTML = `
       <!-- Left: Day & Date -->
       <div class="flex flex-col justify-center w-[108px] xl:w-[122px] shrink-0 pl-1.5 py-2.5">
-        <span class="font-serif text-[17px] xl:text-[18.5px] font-medium text-[#221F1C] leading-tight">
+        <span class="font-serif text-[17px] xl:text-[18.5px] font-medium ${dayHeadingColor} leading-tight">
           ${this.day.dayName}
         </span>
-        <span class="text-[11.5px] text-[#7A746E] font-sans font-normal mt-0.5 flex items-center gap-1">
+        <span class="text-[11.5px] ${isPast ? 'text-[#8F8882]' : 'text-[#7A746E]'} font-sans font-normal mt-0.5 flex items-center gap-1">
           <span>${this.day.dateStr}</span>
           ${isToday ? '<span class="text-[10px] font-semibold text-[#9A5E22]">· Today</span>' : ''}
+          ${isPast ? '<span class="text-[10px] font-medium text-[#8F8882]">· Past</span>' : ''}
         </span>
       </div>
 
@@ -87,13 +94,13 @@ export class DayCard {
           isBreakfastActive ? 'bg-white/65 shadow-2xs' : 'hover:bg-white/40'
         }" data-day="${this.day.dayIndex}" data-meal="breakfast">
           <div class="flex flex-col min-w-0 pr-1">
-            <div class="flex items-center gap-1.5 text-[11px] font-medium text-[#B87A28]">
-              ${getIconSvg('sun', 'w-3 h-3 text-[#D99B38] shrink-0')}
+            <div class="flex items-center gap-1.5 text-[11px] font-medium ${isPast ? 'text-[#9E8B73]' : 'text-[#B87A28]'}">
+              ${getIconSvg('sun', `w-3 h-3 ${isPast ? 'text-[#B39E82]' : 'text-[#D99B38]'} shrink-0`)}
               <span>Breakfast</span>
               ${bMeal ? `<span class="text-[10px] text-[#7A746E]/80 font-normal tabular-nums">· ${bMeal.servings}p</span>` : ''}
               ${bStatusBadge}
             </div>
-            <span class="text-[13.5px] xl:text-[14.5px] font-medium text-[#221F1C] truncate mt-0.5">
+            <span class="text-[13.5px] xl:text-[14.5px] font-medium ${mealTitleColor} truncate mt-0.5">
               ${bMeal ? bMeal.title : '<span class="text-[#77716D]/60 italic font-normal">Add breakfast</span>'}
             </span>
           </div>
@@ -102,7 +109,7 @@ export class DayCard {
           <div class="w-12 h-12 xl:w-[52px] xl:h-[52px] shrink-0 rounded-full overflow-hidden bg-white border-2 border-white shadow-[0_4px_12px_rgba(60,40,20,0.12)] relative">
             ${
               bMeal?.imageUrl
-                ? `<img src="${bMeal.imageUrl}" alt="${bMeal.title}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" loading="lazy" />`
+                ? `<img src="${bMeal.imageUrl}" alt="${bMeal.title}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105 ${thumbFilterClass}" loading="lazy" />`
                 : `<div class="w-full h-full flex items-center justify-center text-[#B87A38]/50">${getIconSvg('sun', 'w-5 h-5')}</div>`
             }
             ${
@@ -123,13 +130,13 @@ export class DayCard {
           isDinnerActive ? 'bg-white/65 shadow-2xs' : 'hover:bg-white/40'
         }" data-day="${this.day.dayIndex}" data-meal="dinner">
           <div class="flex flex-col min-w-0 pr-1">
-            <div class="flex items-center gap-1.5 text-[11px] font-medium text-[#7A726B]">
-              ${getIconSvg('moon', 'w-3 h-3 text-[#8C7A6B] shrink-0')}
+            <div class="flex items-center gap-1.5 text-[11px] font-medium ${isPast ? 'text-[#8F8882]' : 'text-[#7A726B]'}">
+              ${getIconSvg('moon', `w-3 h-3 ${isPast ? 'text-[#9E9791]' : 'text-[#8C7A6B]'} shrink-0`)}
               <span>Dinner</span>
               ${dMeal ? `<span class="text-[10px] text-[#7A746E]/80 font-normal tabular-nums">· ${dMeal.servings}p</span>` : ''}
               ${dStatusBadge}
             </div>
-            <span class="text-[13.5px] xl:text-[14.5px] font-medium text-[#221F1C] truncate mt-0.5">
+            <span class="text-[13.5px] xl:text-[14.5px] font-medium ${mealTitleColor} truncate mt-0.5">
               ${dMeal ? dMeal.title : '<span class="text-[#77716D]/60 italic font-normal">Add dinner</span>'}
             </span>
           </div>
@@ -138,7 +145,7 @@ export class DayCard {
           <div class="w-12 h-12 xl:w-[52px] xl:h-[52px] shrink-0 rounded-full overflow-hidden bg-white border-2 border-white shadow-[0_4px_12px_rgba(60,40,20,0.12)] relative">
             ${
               dMeal?.imageUrl
-                ? `<img src="${dMeal.imageUrl}" alt="${dMeal.title}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" loading="lazy" />`
+                ? `<img src="${dMeal.imageUrl}" alt="${dMeal.title}" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105 ${thumbFilterClass}" loading="lazy" />`
                 : `<div class="w-full h-full flex items-center justify-center text-[#7A726B]/50">${getIconSvg('moon', 'w-5 h-5')}</div>`
             }
             ${

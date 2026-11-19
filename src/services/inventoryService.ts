@@ -256,7 +256,21 @@ class InventoryService {
 
       const stored = await storageService.getAll<IngredientInventory>(STORES.INVENTORY);
       if (stored && stored.length > 0) {
+        const needsActivityBackfill = stored.some((i) => !i.lastActivityAt);
+        const allTransactions = needsActivityBackfill
+          ? await storageService.getAll<InventoryTransaction>(STORES.TRANSACTIONS)
+          : [];
+        const latestTxByIng = new Map<string, InventoryTransaction>();
+        for (const tx of allTransactions) {
+          const prev = latestTxByIng.get(tx.ingredientId);
+          if (!prev || new Date(tx.timestamp).getTime() > new Date(prev.timestamp).getTime()) {
+            latestTxByIng.set(tx.ingredientId, tx);
+          }
+        }
+
         for (const item of stored) {
+          let dirty = false;
+
           // Backfill pricing if missing from previously stored records
           if (item.price === undefined || !item.priceUnit) {
             const match = INITIAL_INVENTORY.find((i) => i.name.toLowerCase() === item.name.toLowerCase());
@@ -280,19 +294,48 @@ class InventoryService {
                 item.priceUnit = 'piece';
               }
             }
+            dirty = true;
+          }
+
+          // Backfill lastActivity* if missing from previously stored records
+          if (!item.lastActivityAt) {
+            const latestTx = latestTxByIng.get(item.id);
+            if (latestTx) {
+              item.lastActivityAt = latestTx.timestamp;
+              item.lastActivityType = latestTx.type;
+              item.lastActivitySummary = this.formatActivitySummary(latestTx);
+            } else if (item.lastUsedAt) {
+              item.lastActivityAt = item.lastUsedAt;
+              item.lastActivityType = 'Meal Usage';
+              item.lastActivitySummary = 'Used in meal';
+            } else {
+              item.lastActivityAt = item.updatedAt || item.createdAt;
+              item.lastActivityType = 'Purchase';
+              item.lastActivitySummary = 'Initial pantry stock';
+            }
+            dirty = true;
+          }
+
+          if (dirty) {
             await storageService.set(STORES.INVENTORY, item);
           }
           this.itemsMap.set(item.id, item);
         }
       } else {
         // Seed default inventory
+        const now = new Date().toISOString();
         for (const raw of INITIAL_INVENTORY) {
           const id = `inv-${raw.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
           const item: IngredientInventory = {
             ...raw,
             id,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
+            createdAt: now,
+            updatedAt: now,
+            lastActivityAt: raw.lastUsedAt || now,
+            lastActivityType: raw.lastUsedAt ? 'Meal Usage' : 'Purchase',
+            lastActivitySummary: raw.lastUsedAt
+              ? 'Used in meal'
+              : `Initial +${formatSmartQuantity(raw.quantity, raw.unit)}`,
           };
           this.itemsMap.set(id, item);
           await storageService.set(STORES.INVENTORY, item);
@@ -305,7 +348,7 @@ class InventoryService {
             unit: item.unit,
             type: 'Purchase',
             notes: 'Initial household pantry stock',
-          });
+          }, { skipLastActivityUpdate: !!raw.lastUsedAt });
         }
       }
 
@@ -335,7 +378,8 @@ class InventoryService {
   }
 
   async addIngredient(
-    data: Omit<IngredientInventory, 'id' | 'createdAt' | 'updatedAt'>
+    data: Omit<IngredientInventory, 'id' | 'createdAt' | 'updatedAt'>,
+    options?: { skipTransactionLog?: boolean }
   ): Promise<IngredientInventory> {
     await this.init();
     const id = `inv-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -345,12 +389,17 @@ class InventoryService {
       id,
       createdAt: now,
       updatedAt: now,
+      lastActivityAt: data.lastActivityAt || now,
+      lastActivityType: data.lastActivityType || 'Purchase',
+      lastActivitySummary:
+        data.lastActivitySummary ||
+        (data.quantity > 0 ? `Added +${formatSmartQuantity(data.quantity, data.unit)}` : 'Added to pantry'),
     };
 
     this.itemsMap.set(id, item);
     await storageService.set(STORES.INVENTORY, item);
 
-    if (item.quantity > 0) {
+    if (item.quantity > 0 && !options?.skipTransactionLog) {
       await this.recordTransaction({
         ingredientId: id,
         ingredientName: item.name,
@@ -364,26 +413,39 @@ class InventoryService {
     return item;
   }
 
-  async updateIngredient(id: string, updates: Partial<IngredientInventory>): Promise<IngredientInventory> {
+  async updateIngredient(
+    id: string,
+    updates: Partial<IngredientInventory>,
+    options?: { skipTransactionLog?: boolean }
+  ): Promise<IngredientInventory> {
     await this.init();
     const existing = this.itemsMap.get(id);
     if (!existing) {
       throw new Error(`Ingredient with id ${id} not found.`);
     }
 
+    const now = new Date().toISOString();
     const previousQty = existing.quantity;
+    const quantityChanged = updates.quantity !== undefined && updates.quantity !== previousQty;
+
     const updated: IngredientInventory = {
       ...existing,
       ...updates,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
+
+    if (!quantityChanged && !options?.skipTransactionLog) {
+      updated.lastActivityAt = now;
+      updated.lastActivityType = 'Details Updated';
+      updated.lastActivitySummary = 'Updated details';
+    }
 
     this.itemsMap.set(id, updated);
     await storageService.set(STORES.INVENTORY, updated);
 
-    // If quantity changed directly, log a manual adjustment
-    if (updates.quantity !== undefined && updates.quantity !== previousQty) {
-      const delta = updates.quantity - previousQty;
+    // If quantity changed directly, log a manual adjustment (which also sets lastActivity*)
+    if (quantityChanged && updates.quantity !== undefined && !options?.skipTransactionLog) {
+      const delta = Math.round((updates.quantity - previousQty) * 100) / 100;
       await this.recordTransaction({
         ingredientId: id,
         ingredientName: updated.name,
@@ -394,7 +456,7 @@ class InventoryService {
       });
     }
 
-    return updated;
+    return this.itemsMap.get(id) || updated;
   }
 
   async deleteIngredient(id: string): Promise<void> {
@@ -612,15 +674,54 @@ class InventoryService {
 
   // --- Transactions Logging ---
 
-  async recordTransaction(tx: Omit<InventoryTransaction, 'id' | 'timestamp'>): Promise<InventoryTransaction> {
+  private formatActivitySummary(tx: Pick<InventoryTransaction, 'type' | 'quantityChange' | 'unit' | 'mealTitle'>): string {
+    const absQty = formatSmartQuantity(Math.abs(tx.quantityChange), tx.unit);
+    const sign = tx.quantityChange >= 0 ? '+' : '-';
+
+    switch (tx.type) {
+      case 'Meal Usage':
+        return tx.mealTitle ? `Used -${absQty} · ${tx.mealTitle}` : `Used -${absQty}`;
+      case 'Purchase':
+        return `Restocked +${absQty}`;
+      case 'Reversal':
+        return tx.mealTitle ? `Reversed +${absQty} · ${tx.mealTitle}` : `Reversed +${absQty}`;
+      case 'Waste':
+        return `Waste -${absQty}`;
+      case 'Manual Adjustment':
+      default:
+        return `Adjusted ${sign}${absQty}`;
+    }
+  }
+
+  async recordTransaction(
+    tx: Omit<InventoryTransaction, 'id' | 'timestamp'>,
+    options?: { skipLastActivityUpdate?: boolean }
+  ): Promise<InventoryTransaction> {
     const id = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const now = new Date().toISOString();
     const fullTx: InventoryTransaction = {
       ...tx,
       id,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
     };
 
     await storageService.set(STORES.TRANSACTIONS, fullTx);
+
+    if (!options?.skipLastActivityUpdate) {
+      const invItem = this.itemsMap.get(fullTx.ingredientId);
+      if (invItem) {
+        invItem.lastActivityAt = now;
+        invItem.lastActivityType = fullTx.type;
+        invItem.lastActivitySummary = this.formatActivitySummary(fullTx);
+        if (fullTx.type === 'Meal Usage') {
+          invItem.lastUsedAt = now;
+        }
+        invItem.updatedAt = now;
+        this.itemsMap.set(invItem.id, invItem);
+        await storageService.set(STORES.INVENTORY, invItem);
+      }
+    }
+
     return fullTx;
   }
 
@@ -646,9 +747,13 @@ class InventoryService {
 
     if (existing) {
       const convertedQty = convertQuantity(quantity, unit, existing.unit) ?? quantity;
-      await this.updateIngredient(existing.id, {
-        quantity: Math.round((existing.quantity + convertedQty) * 100) / 100,
-      });
+      await this.updateIngredient(
+        existing.id,
+        {
+          quantity: Math.round((existing.quantity + convertedQty) * 100) / 100,
+        },
+        { skipTransactionLog: true }
+      );
       await this.recordTransaction({
         ingredientId: existing.id,
         ingredientName: existing.name,
@@ -659,17 +764,20 @@ class InventoryService {
       });
     } else {
       const catMatch = ingredientCatalogService.findCatalogItem(ingredientName);
-      const newIng = await this.addIngredient({
-        name: ingredientName,
-        quantity,
-        unit,
-        minStockLevel: Math.round(quantity * 0.3),
-        location: catMatch?.defaultLocation || location,
-        category: catMatch?.category || category,
-        price: catMatch?.referencePriceZAR,
-        priceUnit: catMatch?.priceUnit,
-        notes: 'Added from shopping list',
-      });
+      const newIng = await this.addIngredient(
+        {
+          name: ingredientName,
+          quantity,
+          unit,
+          minStockLevel: Math.round(quantity * 0.3),
+          location: catMatch?.defaultLocation || location,
+          category: catMatch?.category || category,
+          price: catMatch?.referencePriceZAR,
+          priceUnit: catMatch?.priceUnit,
+          notes: 'Added from shopping list',
+        },
+        { skipTransactionLog: true }
+      );
       await this.recordTransaction({
         ingredientId: newIng.id,
         ingredientName: newIng.name,

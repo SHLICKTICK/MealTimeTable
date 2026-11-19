@@ -192,3 +192,42 @@
   --day-accent-glow: rgba(128, 135, 196, 0.5);
   background: linear-gradient(90deg, var(--day-sunday-bg) 0%, rgba(255, 255, 255, 0.34) 34%);
 }
+
+/* Chronological Day States: Past vs Today vs Upcoming */
+.day-card-capsule.day-card-past {
+  background: rgba(244, 240, 236, 0.42);
+  border-color: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 2px 10px -4px rgba(85, 58, 30, 0.03);
+  opacity: 0.72;
+}
+
+.day-card-capsule.day-card-past::before {
+  opacity: 0.35;
+  filter: saturate(0.25);
+  box-shadow: none;
+}
+
+.day-card-capsule.day-card-past .day-inner-glass {
+  background: rgba(255, 255, 255, 0.42);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.day-card-capsule.day-card-past:hover {
+  opacity: 0.9;
+  border-color: rgba(255, 255, 255, 0.8);
+}
+
+.day-card-capsule.day-card-past.glass-card-active {
+  opacity: 0.94;
+}
+
+.day-card-capsule.day-card-today {
+  border-color: rgba(232, 178, 102, 0.65);
+  box-shadow:
+    0 8px 24px -6px rgba(185, 130, 62, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.day-card-capsule.day-card-today .day-inner-glass {
+  background: rgba(255, 255, 255, 0.68);
+}

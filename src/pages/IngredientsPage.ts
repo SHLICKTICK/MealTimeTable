@@ -81,8 +81,10 @@ export class IngredientsPage {
         return getItemStockValue(b) - getItemStockValue(a);
       }
       if (this.sortBy === 'recent') {
-        const timeA = a.lastUsedAt ? new Date(a.lastUsedAt).getTime() : 0;
-        const timeB = b.lastUsedAt ? new Date(b.lastUsedAt).getTime() : 0;
+        const isoA = a.lastActivityAt || a.lastUsedAt || a.updatedAt;
+        const isoB = b.lastActivityAt || b.lastUsedAt || b.updatedAt;
+        const timeA = isoA ? new Date(isoA).getTime() : 0;
+        const timeB = isoB ? new Date(isoB).getTime() : 0;
         return timeB - timeA;
       }
       if (this.sortBy === 'never-used') {
@@ -227,8 +229,8 @@ export class IngredientsPage {
             <option value="price-desc" ${this.sortBy === 'price-desc' ? 'selected' : ''}>Sort: Unit Price (High-Low)</option>
             <option value="quantity-desc" ${this.sortBy === 'quantity-desc' ? 'selected' : ''}>Sort: Quantity (High-Low)</option>
             <option value="quantity-asc" ${this.sortBy === 'quantity-asc' ? 'selected' : ''}>Sort: Quantity (Low-High)</option>
-            <option value="recent" ${this.sortBy === 'recent' ? 'selected' : ''}>Sort: Recently Used</option>
-            <option value="never-used" ${this.sortBy === 'never-used' ? 'selected' : ''}>Sort: Never Used</option>
+            <option value="recent" ${this.sortBy === 'recent' ? 'selected' : ''}>Sort: Recent Activity</option>
+            <option value="never-used" ${this.sortBy === 'never-used' ? 'selected' : ''}>Sort: Never Cooked With</option>
           </select>
         </div>
       </div>
@@ -242,9 +244,7 @@ export class IngredientsPage {
                 <th class="py-3 px-4">Ingredient</th>
                 <th class="py-3 px-4">Current Stock</th>
                 <th class="py-3 px-4">Unit Price</th>
-                <th class="py-3 px-4">Stock Value</th>
                 <th class="py-3 px-4">Status</th>
-                <th class="py-3 px-4">Last Activity</th>
                 <th class="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -253,7 +253,7 @@ export class IngredientsPage {
                 filtered.length === 0
                   ? `
                 <tr>
-                  <td colspan="7" class="py-12 text-center text-[#77716D] font-serif">
+                  <td colspan="5" class="py-12 text-center text-[#77716D] font-serif">
                     No ingredients found matching your search and filter criteria.
                   </td>
                 </tr>
@@ -279,14 +279,8 @@ export class IngredientsPage {
                           </span>`;
                         }
 
-                        const lastUsedStr = item.lastUsedAt
-                          ? new Date(item.lastUsedAt).toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' })
-                          : '<span class="text-[#6B6560]/50 italic">Never used</span>';
-
-                        const stockVal = getItemStockValue(item);
-
                         return `
-                    <tr class="hover:bg-white/45 transition group">
+                    <tr class="ingredient-row hover:bg-white/55 transition group cursor-pointer" data-id="${item.id}" title="Click to view full details, Stock Value & Last Activity">
                       <!-- Name & Category -->
                       <td class="py-3 px-4">
                         <div class="flex items-center gap-2.5">
@@ -324,21 +318,9 @@ export class IngredientsPage {
                         </div>
                       </td>
 
-                      <!-- Calculated Stock Value -->
-                      <td class="py-3 px-4">
-                        <span class="font-semibold text-[#8C5C26] tabular-nums text-xs">
-                          ${formatZAR(stockVal)}
-                        </span>
-                      </td>
-
                       <!-- Status -->
                       <td class="py-3 px-4">
                         ${statusBadge}
-                      </td>
-
-                      <!-- Last Used -->
-                      <td class="py-3 px-4 text-[#6B6560]">
-                        ${lastUsedStr}
                       </td>
 
                       <!-- Actions -->
@@ -432,15 +414,28 @@ export class IngredientsPage {
       appState.openModal('inventory-activity');
     });
 
+    // Clickable rows open the full Ingredient Detail pop-up modal
+    const rows = this.container.querySelectorAll<HTMLTableRowElement>('.ingredient-row');
+    rows.forEach((row) => {
+      row.addEventListener('click', () => {
+        const id = row.getAttribute('data-id');
+        const item = this.ingredients.find((i) => i.id === id);
+        if (item) {
+          appState.openModal('ingredient-detail', { ingredient: item });
+        }
+      });
+    });
+
     // Quick increment / decrement quantity buttons
     const qtyBtns = this.container.querySelectorAll<HTMLButtonElement>('.btn-quick-qty');
     qtyBtns.forEach((btn) => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const id = btn.getAttribute('data-id');
         const action = btn.getAttribute('data-action');
         const item = this.ingredients.find((i) => i.id === id);
         if (id && item) {
-          // Adjust by step: if in grams, 100g, if kg 0.5kg, else 1
+          // Adjust by step: if in grams, 50g, if kg 0.5kg, else 1
           let step = 1;
           if (item.unit === 'g') step = 50;
           else if (item.unit === 'ml') step = 50;
@@ -456,7 +451,8 @@ export class IngredientsPage {
     // Item-specific actions
     const itemHistoryBtns = this.container.querySelectorAll<HTMLButtonElement>('.btn-item-history');
     itemHistoryBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const id = btn.getAttribute('data-id');
         const item = this.ingredients.find((i) => i.id === id);
         if (item) {
@@ -467,7 +463,8 @@ export class IngredientsPage {
 
     const editBtns = this.container.querySelectorAll<HTMLButtonElement>('.btn-item-edit');
     editBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         const id = btn.getAttribute('data-id');
         const item = this.ingredients.find((i) => i.id === id);
         if (item) {
@@ -478,7 +475,8 @@ export class IngredientsPage {
 
     const deleteBtns = this.container.querySelectorAll<HTMLButtonElement>('.btn-item-delete');
     deleteBtns.forEach((btn) => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const id = btn.getAttribute('data-id');
         const item = this.ingredients.find((i) => i.id === id);
         if (id && item && confirm(`Remove "${item.name}" from household inventory?`)) {

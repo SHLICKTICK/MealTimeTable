@@ -18,6 +18,7 @@ export type ModalType =
   | 'meal-completion'
   | 'add-inventory'
   | 'edit-inventory'
+  | 'ingredient-detail'
   | 'inventory-activity'
   | 'price-catalog';
 
