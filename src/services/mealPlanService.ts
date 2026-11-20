@@ -194,11 +194,21 @@ class MealPlanService {
     const plan = (await storageService.get<WeeklyPlan>(STORES.WEEKLY_PLANS, weekId)) || (await this.getWeekPlan(this.currentWeekOffset));
     if (plan.days[dayIndex] && plan.days[dayIndex][mealType]) {
       const meal = plan.days[dayIndex][mealType]!;
-      meal.status = status;
-      if (completionId !== undefined) {
-        meal.completionId = completionId;
+      const alreadySynced =
+        meal.status === status &&
+        (status === 'cooked'
+          ? completionId === undefined || meal.completionId === completionId
+          : meal.completionId === undefined);
+
+      if (!alreadySynced) {
+        meal.status = status;
+        if (completionId !== undefined) {
+          meal.completionId = completionId;
+        } else if (status !== 'cooked') {
+          delete meal.completionId;
+        }
+        await storageService.set(STORES.WEEKLY_PLANS, plan);
       }
-      await storageService.set(STORES.WEEKLY_PLANS, plan);
       this.currentPlan = plan;
     }
     return plan;

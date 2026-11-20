@@ -2,7 +2,7 @@ import { appState, AppState, AppPage } from './state';
 import { Sidebar } from '../components/Sidebar';
 import { WeeklyHeader } from '../components/WeeklyHeader';
 import { RecipePanel } from '../components/RecipePanel';
-import { Modal } from '../components/Modal';
+import { ModalManager } from '../components/modals';
 import { WeeklyPlanPage } from '../pages/WeeklyPlanPage';
 import { RecipesPage } from '../pages/RecipesPage';
 import { IngredientsPage } from '../pages/IngredientsPage';
@@ -15,7 +15,7 @@ export class App {
   private sidebar: Sidebar;
   private weeklyHeader: WeeklyHeader;
   private recipePanel: RecipePanel;
-  private modal: Modal;
+  private modal: ModalManager;
 
   // Pages
   private weeklyPlanPage: WeeklyPlanPage;
@@ -33,7 +33,7 @@ export class App {
     this.sidebar = new Sidebar();
     this.weeklyHeader = new WeeklyHeader();
     this.recipePanel = new RecipePanel();
-    this.modal = new Modal();
+    this.modal = new ModalManager();
 
     this.weeklyPlanPage = new WeeklyPlanPage();
     this.recipesPage = new RecipesPage();

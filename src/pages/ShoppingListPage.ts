@@ -10,6 +10,8 @@ export class ShoppingListPage {
   private container: HTMLElement;
   private items: ShoppingItem[] = [];
   private loading: boolean = true;
+  private isRestockingBatch: boolean = false;
+  private inFlightItemIds: Set<string> = new Set();
 
   constructor() {
     this.container = document.createElement('div');
@@ -81,7 +83,7 @@ export class ShoppingListPage {
 
         <div class="flex flex-wrap items-center gap-2">
           <button id="btn-add-all-purchased" 
-                  class="px-4 py-2 rounded-full text-white text-xs font-medium flex items-center gap-1.5 hover:opacity-95 transition shadow-[0_6px_16px_-4px_rgba(25,22,19,0.3)] cursor-pointer whitespace-nowrap"
+                  class="px-4 py-2 rounded-full text-white text-xs font-medium flex items-center gap-1.5 hover:opacity-95 transition shadow-[0_6px_16px_-4px_rgba(25,22,19,0.3)] cursor-pointer whitespace-nowrap disabled:opacity-50"
                   style="background: linear-gradient(180deg, #2D2A27 0%, #191715 100%);">
             ${getIconSvg('plus', 'w-3.5 h-3.5')}
             Restock All Purchased
@@ -140,7 +142,6 @@ export class ShoppingListPage {
           ${Array.from(categoriesMap.entries())
             .map(([cat, catItems]) => {
               const toBuyInCat = catItems.filter((i) => !i.isSufficientInStock);
-              const stockedInCat = catItems.filter((i) => i.isSufficientInStock);
 
               return `
             <div class="rounded-[22px] bg-white/58 backdrop-blur-md border border-white/85 p-4 flex flex-col gap-3 shadow-[0_6px_22px_-6px_rgba(85,58,30,0.06),inset_0_1px_0_#FFFFFF]">
@@ -175,6 +176,12 @@ export class ShoppingListPage {
                             };
                           })();
                     const itemCost = resolved.cost;
+                    const mergedTooltip =
+                      item.originalRequirements && item.originalRequirements.length > 1
+                        ? item.originalRequirements
+                            .map((r) => `${r.mealLabel}: ${formatSmartQuantity(r.quantity, r.unit)}`)
+                            .join(' + ')
+                        : '';
 
                     return `
                   <div class="flex items-center justify-between py-2.5 text-xs hover:bg-white/45 px-2 rounded-xl transition group">
@@ -193,8 +200,9 @@ export class ShoppingListPage {
                       ${getIngredientMiniIconSvg(item.name, item.category)}
 
                       <div class="flex flex-col min-w-0">
-                        <div class="flex items-center gap-1.5">
-                          <span class="${item.purchased ? 'line-through text-[#6B6560]/60' : 'text-[#221F1C] font-medium'} truncate">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                          <span class="${item.purchased ? 'line-through text-[#6B6560]/60' : 'text-[#221F1C] font-medium'} truncate"
+                                title="${mergedTooltip}">
                             ${item.name}
                           </span>
                           ${
@@ -202,11 +210,18 @@ export class ShoppingListPage {
                               ? `<span class="text-[10px] font-medium text-emerald-700 bg-emerald-50/90 px-2 py-0.2 rounded-full border border-emerald-200 shrink-0">In Pantry</span>`
                               : ''
                           }
+                          ${
+                            item.needsReview
+                              ? `<span class="text-[10px] font-medium text-amber-800 bg-amber-50 px-2 py-0.2 rounded-full border border-amber-200 shrink-0">Review units</span>`
+                              : ''
+                          }
                         </div>
 
                         <span class="text-[10.5px] text-[#6B6560]/85 truncate">
                           ${
-                            isSufficient
+                            item.needsReview && item.conversionWarning
+                              ? item.conversionWarning
+                              : isSufficient
                               ? `Sufficient: Have ${formatSmartQuantity(item.quantityInStock, item.unit)} in pantry (Week needs ${formatSmartQuantity(item.quantityRequired, item.unit)})`
                               : `Need ${formatSmartQuantity(item.quantityRequired, item.unit)} · Have ${formatSmartQuantity(item.quantityInStock, item.unit)} in pantry`
                           }
@@ -241,9 +256,9 @@ export class ShoppingListPage {
                       </div>
 
                       ${
-                        !isSufficient && item.purchased && !item.addedToInventory
+                        !isSufficient && item.quantityToBuy > 0 && item.purchased && !item.addedToInventory
                           ? `
-                        <button class="btn-add-item-to-stock px-2.5 py-0.5 rounded-full bg-[#EAF5EA] text-[#3E703E] hover:bg-[#D5EAD5] text-[10px] font-semibold transition border border-[#D5EAD5] cursor-pointer whitespace-nowrap"
+                        <button class="btn-add-item-to-stock px-2.5 py-0.5 rounded-full bg-[#EAF5EA] text-[#3E703E] hover:bg-[#D5EAD5] text-[10px] font-semibold transition border border-[#D5EAD5] cursor-pointer whitespace-nowrap disabled:opacity-50"
                                 data-id="${item.id}" title="Add purchased quantity into pantry inventory">
                           + Stock
                         </button>
@@ -288,34 +303,80 @@ export class ShoppingListPage {
         const itemId = btn.getAttribute('data-id');
         const plan = appState.getState().currentPlan;
         const item = this.items.find((i) => i.id === itemId);
-        if (item && plan) {
+        if (!item || !plan || this.inFlightItemIds.has(item.id) || btn.disabled) return;
+
+        this.inFlightItemIds.add(item.id);
+        btn.disabled = true;
+        try {
           const success = await ingredientService.addPurchasedToInventory(plan.id, item);
           if (success) {
             appState.showToast(`Restocked ${item.name} into pantry inventory!`, 'success');
+            await appState.refreshBudget();
             await this.loadItems();
+          } else {
+            btn.disabled = false;
           }
+        } catch (err) {
+          btn.disabled = false;
+          appState.showToast(
+            err instanceof Error ? err.message : `Failed to restock ${item.name}.`,
+            'warning'
+          );
+        } finally {
+          this.inFlightItemIds.delete(item.id);
         }
       });
     });
 
-    // Restock all purchased
-    const addAllBtn = this.container.querySelector('#btn-add-all-purchased');
+    // Restock all purchased (strictly excluding already-sufficient / zero-quantity items)
+    const addAllBtn = this.container.querySelector<HTMLButtonElement>('#btn-add-all-purchased');
     addAllBtn?.addEventListener('click', async () => {
+      if (this.isRestockingBatch || addAllBtn.disabled) return;
       const plan = appState.getState().currentPlan;
       if (!plan) return;
 
-      const purchasedUnstocked = this.items.filter((i) => i.purchased && !i.addedToInventory);
+      const purchasedUnstocked = this.items.filter(
+        (i) => !i.isSufficientInStock && i.quantityToBuy > 0 && i.purchased && !i.addedToInventory
+      );
       if (purchasedUnstocked.length === 0) {
         appState.showToast('No newly purchased items to add to inventory.', 'info');
         return;
       }
 
-      for (const item of purchasedUnstocked) {
-        await ingredientService.addPurchasedToInventory(plan.id, item);
-      }
+      this.isRestockingBatch = true;
+      addAllBtn.disabled = true;
+      let addedCount = 0;
+      let skippedCount = 0;
 
-      appState.showToast(`Restocked ${purchasedUnstocked.length} purchased items into pantry!`, 'success');
-      await this.loadItems();
+      try {
+        for (const item of purchasedUnstocked) {
+          try {
+            const ok = await ingredientService.addPurchasedToInventory(plan.id, item);
+            if (ok) addedCount++;
+          } catch {
+            skippedCount++;
+          }
+        }
+
+        if (addedCount > 0) {
+          await appState.refreshBudget();
+          appState.showToast(
+            skippedCount > 0
+              ? `Restocked ${addedCount} items (${skippedCount} skipped due to unit mismatch).`
+              : `Restocked ${addedCount} purchased items into pantry!`,
+            skippedCount > 0 ? 'warning' : 'success'
+          );
+        } else if (skippedCount > 0) {
+          appState.showToast(
+            `Could not restock ${skippedCount} item(s) due to incompatible pantry units.`,
+            'warning'
+          );
+        }
+        await this.loadItems();
+      } finally {
+        this.isRestockingBatch = false;
+        addAllBtn.disabled = false;
+      }
     });
 
     const clearBtn = this.container.querySelector('#btn-clear-completed');
@@ -335,7 +396,7 @@ export class ShoppingListPage {
         .forEach((item) => {
           text += `[${item.purchased ? 'x' : ' '}] ${item.name}: ${item.displayQuantity}\n`;
         });
-      navigator.clipboard.writeText(text);
+      navigator.clipboard?.writeText(text);
       appState.showToast('Shopping list copied to clipboard!', 'info');
     });
   }

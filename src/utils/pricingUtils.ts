@@ -61,6 +61,8 @@ export const LIQUID_UNITS = new Set([
   'cup',
   'cups',
   'fl oz',
+  'fluid ounce',
+  'fluid ounces',
 ]);
 
 export const DISCRETE_UNITS = new Set([
@@ -173,15 +175,15 @@ export function toBaseQuantity(quantity: number, unit: string): { amount: number
       return { amount: quantity * 1000, type: 'liquid' }; // to ml
     }
     if (u === 'tsp' || u === 'teaspoon' || u === 'teaspoons') {
-      return { amount: quantity * 5, type: 'liquid' };
+      return { amount: quantity * (236.588 / 48), type: 'liquid' };
     }
     if (u === 'tbsp' || u === 'tablespoon' || u === 'tablespoons') {
-      return { amount: quantity * 15, type: 'liquid' };
+      return { amount: quantity * (236.588 / 16), type: 'liquid' };
     }
     if (u === 'cup' || u === 'cups') {
-      return { amount: quantity * 250, type: 'liquid' };
+      return { amount: quantity * 236.588, type: 'liquid' };
     }
-    if (u === 'fl oz') {
+    if (u === 'fl oz' || u === 'fluid ounce' || u === 'fluid ounces') {
       return { amount: quantity * 29.5735, type: 'liquid' };
     }
     return { amount: quantity, type: 'liquid' }; // already ml

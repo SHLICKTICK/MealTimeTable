@@ -268,14 +268,30 @@ export class RecipePanel {
     });
 
     // Undo cooked button
-    const undoCookedBtn = this.container.querySelector('#btn-undo-cooked');
+    const undoCookedBtn = this.container.querySelector<HTMLButtonElement>('#btn-undo-cooked');
+    let isUndoing = false;
     undoCookedBtn?.addEventListener('click', async () => {
+      if (isUndoing || undoCookedBtn.disabled) return;
       if (plannedMeal && plannedMeal.completionId) {
-        const reversed = await inventoryService.undoMealCompletion(plannedMeal.completionId);
-        if (reversed && state.currentPlan) {
-          await mealPlanService.updateMealStatus(state.currentPlan.id, dayIndex, mealType, 'planned');
-          appState.showToast(`Restored ingredients for ${recipe.title}`, 'info');
-          await appState.setWeekOffset(state.weekOffset);
+        isUndoing = true;
+        undoCookedBtn.disabled = true;
+        try {
+          const reversed = await inventoryService.undoMealCompletion(plannedMeal.completionId);
+          if (reversed && state.currentPlan) {
+            await mealPlanService.updateMealStatus(state.currentPlan.id, dayIndex, mealType, 'planned');
+            appState.showToast(`Restored ingredients for ${recipe.title}`, 'info');
+            await appState.setWeekOffset(state.weekOffset);
+          } else {
+            isUndoing = false;
+            undoCookedBtn.disabled = false;
+          }
+        } catch (err) {
+          isUndoing = false;
+          undoCookedBtn.disabled = false;
+          appState.showToast(
+            err instanceof Error ? err.message : 'Unable to reverse meal completion.',
+            'warning'
+          );
         }
       }
     });

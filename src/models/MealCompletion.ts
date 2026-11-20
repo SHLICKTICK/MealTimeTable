@@ -9,6 +9,7 @@ export interface IngredientDeduction {
 
 export interface MealCompletion {
   id: string;
+  operationId?: string;
   mealId: string; // plan meal id
   weekId: string;
   dayIndex: number;
